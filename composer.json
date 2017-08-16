@@ -1,0 +1,22 @@
+{
+    "name": "catlabinteractive/laravel-charon-frontend",
+    "description": "A laravel frontend to be placed upon a laravel charon rest api to draw fancy interfaces.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Thijs Van der Schaeghe",
+            "email": "thijs@catlab.be"
+        }
+    ],
+    "require": {
+        "catlabinteractive/charon-laravel": "dev-master",
+        "catlabinteractive/cursor-pagination": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "CatLab\\CharonFrontend\\": "src/"
+        }
+    }
+}
