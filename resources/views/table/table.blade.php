@@ -22,7 +22,16 @@
                     $id = ($resource->getIdentifiers()->getValues())[0]->getValue();
                 ?>
                 @foreach($actions as $action)
-                    <a href="{{ action($action['action'], $id) }}">
+                    <?php
+                        $parameters = [
+                            'id' => $id
+                        ];
+
+                        if ($action['parameters'] !== null) {
+                            $parameters = array_merge($action['parameters'], [ 'id' => $id ]);
+                        }
+                    ?>
+                    <a href="{{ action($action['action'], $parameters) }}">
                         {{ $action['label'] }}
                     </a>
                 @endforeach

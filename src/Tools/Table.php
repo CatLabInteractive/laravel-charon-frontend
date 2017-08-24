@@ -78,12 +78,14 @@ class Table
 
     /**
      * @param $action
+     * @param $parameters
      * @param $label
      */
-    public function action($action, $label)
+    public function action($action, $parameters, $label)
     {
         $this->actions[] = [
             'action' => $action,
+            'parameters' => $parameters,
             'label' => $label
         ];
     }

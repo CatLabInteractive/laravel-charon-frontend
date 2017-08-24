@@ -2,14 +2,18 @@
 
 namespace CatLab\CharonFrontend\Controllers;
 
+use Carbon\Carbon;
 use CatLab\Charon\Collections\ResourceCollection;
 use CatLab\Charon\Enums\Action;
 use CatLab\Charon\Interfaces\ResourceDefinition;
 use CatLab\Charon\Laravel\Controllers\ResourceController;
 use CatLab\Charon\Models\Context;
+use CatLab\Charon\Models\Properties\Base\Field;
+use CatLab\Charon\Models\Properties\RelationshipField;
 use CatLab\Charon\Models\ResourceResponse;
 use CatLab\Charon\Models\RESTResource;
 use CatLab\Charon\Models\Values\Base\RelationshipValue;
+use CatLab\Charon\Models\Values\ChildrenValue;
 use CatLab\CharonFrontend\Exceptions\UnexpectedResponse;
 use CatLab\CharonFrontend\Exceptions\UnresolvedMethodException;
 use CatLab\CharonFrontend\Tools\Table;
@@ -24,8 +28,20 @@ use Session;
  * Class CrudController
  * @package CatLab\CharonFrontend\Controllers
  */
-trait CrudController
+trait FrontCrudController
 {
+    /**
+     * Set routes
+     * @param $path
+     * @param $controller
+     * @param string $modelId
+     */
+    public static function routes($path, $controller, $modelId = 'id')
+    {
+        \Route::resource($path, $controller);
+        \Route::get($path . '/{' . $modelId . '}/delete', $controller . '@confirmDelete');
+    }
+
     /**
      * This method should return an instance of the corresponding api controller.
      * @return ResourceController
@@ -37,12 +53,25 @@ trait CrudController
      */
     private $apiController;
 
+    /**
+     * @var mixed
+     */
+    private $childControllerMap = [];
+
     protected $routeMap = [
         Action::INDEX => 'index',
         Action::CREATE => 'store',
         Action::VIEW => 'view',
         Action::EDIT => 'edit',
         Action::DESTROY => 'destroy'
+    ];
+
+    protected $frontControllerRouteMap = [
+        Action::INDEX => 'index',
+        Action::CREATE => 'create',
+        Action::VIEW => 'show',
+        Action::EDIT => 'edit',
+        Action::DESTROY => 'confirmDelete',
     ];
 
     /**
@@ -53,7 +82,7 @@ trait CrudController
      */
     public function index(Request $request)
     {
-        $response = $this->dispatchToApi(Action::INDEX, [ $request ]);
+        $response = $this->dispatchToApi(Action::INDEX, $request);
 
         if (!($response instanceof ResourceResponse)) {
             throw UnexpectedResponse::createNoResourceCollection($response);
@@ -71,15 +100,27 @@ trait CrudController
         );
 
         if ($this->hasMethod(Action::VIEW)) {
-            $table->action($this->getControllerAction('show'), 'Show');
+            $table->action(
+                $this->getControllerAction(Action::VIEW),
+                $this->getRouteParameters($request, Action::VIEW),
+                'Show'
+            );
         }
 
         if ($this->hasMethod(Action::EDIT)) {
-            $table->action($this->getControllerAction('edit'), 'Edit');
+            $table->action(
+                $this->getControllerAction(Action::EDIT),
+                $this->getRouteParameters($request, Action::EDIT),
+                'Edit'
+            );
         }
 
         if ($this->hasMethod(Action::DESTROY)) {
-            $table->action($this->getControllerAction('confirmDelete'), 'Delete');
+            $table->action(
+                $this->getControllerAction(Action::DESTROY),
+                $this->getRouteParameters($request, Action::DESTROY),
+                'Delete'
+            );
         }
 
         $view = $this->getView('index');
@@ -114,13 +155,14 @@ trait CrudController
      */
     public function store(Request $request)
     {
-        $response = $this->dispatchToApi(Action::CREATE, [ $request ]);
+        $newRequest = $this->transformFormInput($request);
+        $response = $this->dispatchToApi(Action::CREATE, $newRequest);
 
         if (!($response instanceof ResourceResponse)) {
             return $this->handleErrorResponse($response, 'store');
         }
 
-        return $this->afterStore($response->getResource());
+        return $this->afterStore($request, $response->getResource());
     }
 
     /**
@@ -129,7 +171,7 @@ trait CrudController
      */
     public function show(Request $request)
     {
-        $response = $this->dispatchToApi(Action::VIEW, [ $request ]);
+        $response = $this->dispatchToApi(Action::VIEW, $request);
         $resource = $response->getResource();
 
         $view = $this->getView(Action::VIEW);
@@ -144,16 +186,26 @@ trait CrudController
         // Look for relationships and build tables
         foreach ($resource->getProperties()->getRelationships()->getValues() as $relationship) {
 
-            /** @var RelationshipValue $relationship */
-            $data['relationships'][] = [
-                'property' => $relationship,
-                'title' => $relationship->getField()->getName(),
-                'table' => $this->getTableForResourceCollection(
-                    $relationship->getChildren(),
-                    $relationship->getField()->getChildResource(),
-                    $context
-                )
-            ];
+            if ($relationship instanceof ChildrenValue) {
+
+                $childResourceDefinition = $relationship->getField()->getChildResource();
+
+                if (isset($this->childControllerMap[get_class($childResourceDefinition)])) {
+                    $childController = new $this->childControllerMap[get_class($childResourceDefinition)];
+                }
+
+                $data['relationships'][] = [
+                    'property' => $relationship,
+                    'title' => $relationship->getField()->getName(),
+                    'table' => $childController->getTableForResourceCollection(
+                        $request,
+                        $relationship->getChildren(),
+                        $relationship->getField()->getChildResource(),
+                        $context
+                    )
+                ];
+            }
+
         }
 
         return view($view, $data);
@@ -166,7 +218,7 @@ trait CrudController
      */
     public function edit(Request $request)
     {
-        $resource = $this->dispatchToApi(Action::VIEW, [ $request ]);
+        $resource = $this->dispatchToApi(Action::VIEW, $request);
         return $this->formView(Action::CREATE, 'update', $resource->getResource());
     }
 
@@ -178,18 +230,19 @@ trait CrudController
      */
     public function update(Request $request, $id)
     {
-        $response = $this->dispatchToApi(Action::EDIT, [ $request ]);
+        $request = $this->transformFormInput($request);
+        $response = $this->dispatchToApi(Action::EDIT, $request);
 
         if (!($response instanceof ResourceResponse)) {
             return $this->handleErrorResponse($response, 'store');
         }
 
-        return $this->afterUpdate($response->getResource());
+        return $this->afterUpdate($request, $response->getResource());
     }
 
     public function confirmDelete(Request $request)
     {
-        $resource = $this->dispatchToApi(Action::VIEW, [ $request ]);
+        $resource = $this->dispatchToApi(Action::VIEW, $request);
         $resource = $resource->getResource();
 
         $view = $this->getView(Action::DESTROY);
@@ -209,19 +262,32 @@ trait CrudController
      */
     public function destroy(Request $request)
     {
-        $resource = $this->dispatchToApi(Action::VIEW, [ $request ])->getResource();
-        $this->dispatchToApi(Action::DESTROY, [ $request ]);
+        $resource = $this->dispatchToApi(Action::VIEW, $request)->getResource();
+        $this->dispatchToApi(Action::DESTROY, $request);
 
-        return $this->afterDestroy($resource);
+        return $this->afterDestroy($request, $resource);
     }
 
     /**
+     * @param $resourceDefinitionClassName
+     * @param $controllerClassName
+     * @return $this
+     */
+    protected function setChildController($resourceDefinitionClassName, $controllerClassName)
+    {
+        $this->childControllerMap[$resourceDefinitionClassName] = $controllerClassName;
+        return $this;
+    }
+
+    /**
+     * @param Request $request
      * @param ResourceCollection $collection
      * @param ResourceDefinition $resourceDefinition
      * @param Context $context
      * @return Table
      */
-    protected function getTableForResourceCollection (
+    public function getTableForResourceCollection (
+        Request $request,
         ResourceCollection $collection,
         ResourceDefinition $resourceDefinition,
         Context $context
@@ -233,15 +299,27 @@ trait CrudController
         );
 
         if ($this->hasMethod(Action::VIEW)) {
-            $table->action($this->getControllerAction('show'), 'Show');
+            $table->action(
+                $this->getControllerAction(Action::VIEW),
+                $this->getRouteParameters($request, Action::VIEW),
+                'Show'
+            );
         }
 
         if ($this->hasMethod(Action::EDIT)) {
-            $table->action($this->getControllerAction('edit'), 'Edit');
+            $table->action(
+                $this->getControllerAction(Action::EDIT),
+                $this->getRouteParameters($request, Action::EDIT),
+                'Edit'
+            );
         }
 
         if ($this->hasMethod(Action::DESTROY)) {
-            $table->action($this->getControllerAction('confirmDelete'), 'Delete');
+            $table->action(
+                $this->getControllerAction(Action::DESTROY),
+                $this->getRouteParameters($request, Action::DESTROY),
+                'Delete'
+            );
         }
 
         return $table;
@@ -291,16 +369,23 @@ trait CrudController
 
     /**
      * @param $action
+     * @param Request $request
      * @param array $parameters
      * @return ResourceResponse|Response
      */
-    protected function dispatchToApi($action, $parameters = [])
+    protected function dispatchToApi($action, Request $request, $parameters = [])
     {
+        $requestParameters = $this->getApiControllerParameters($request, $action);
+        if ($requestParameters !== null) {
+            $request->attributes->replace($requestParameters);
+        }
+
         $method = $this->resolveMethod($action);
         $controller = $this->getApiController();
 
-        $response = call_user_func_array([ $controller, $method ], $parameters);
+        array_unshift($parameters, $request);
 
+        $response = call_user_func_array([ $controller, $method ], $parameters);
         return $response;
     }
 
@@ -347,7 +432,7 @@ trait CrudController
     protected function action($method, $parameters = [])
     {
         $parameters = array_merge($parameters, \Request::route()->parameters());
-        return action($this->getControllerAction($method), $parameters);
+        return action($this->getRawControllerAction($method), $parameters);
     }
 
     /**
@@ -357,7 +442,43 @@ trait CrudController
      */
     protected function getControllerAction($method)
     {
-        return '\\' . self::class . '@' . $method;
+        if (!isset($this->frontControllerRouteMap[$method])) {
+            throw new \InvalidArgumentException("Action " . $method . " does not exist in frontControllerRouteMap");
+        }
+
+        $action = $this->frontControllerRouteMap[$method];
+        return $this->getRawControllerAction($action);
+    }
+
+    /**
+     * @param $action
+     * @return string
+     */
+    protected function getRawControllerAction($action)
+    {
+        return '\\' . self::class . '@' . $action;
+    }
+
+    /**
+     * Get any parameters that might be required by the controller.
+     * @param Request $request
+     * @param $method
+     * @return array
+     */
+    protected function getApiControllerParameters(Request $request, $method)
+    {
+        return [];
+    }
+
+    /**
+     * Get any parameters that might be required by the controller.
+     * @param Request $request
+     * @param $method
+     * @return array
+     */
+    protected function getRouteParameters(Request $request, $method)
+    {
+        return [];
     }
 
     /**
@@ -370,8 +491,16 @@ trait CrudController
     {
         $context = new Context($action, []);
 
+        /** @var ResourceDefinition $resourceDefinition */
         $resourceDefinition = $this->getResourceDefinition();
-        $fields = $resourceDefinition->getFields()->getWithAction($context->getAction());
+        $fields = $resourceDefinition
+            ->getFields()
+            ->filter(
+                function(Field $field) {
+                    return !$field instanceof RelationshipField;
+                }
+            )
+            ->getWithAction($context->getAction());
 
         $view = $this->getView('form');
 
@@ -397,41 +526,59 @@ trait CrudController
 
     /**
      * Executed after store.
+     * @param Request $request
      * @param RESTResource $newResource
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
-    protected function afterStore(RESTResource $newResource)
+    protected function afterStore(Request $request, RESTResource $newResource)
     {
         $entityName = $this->getResourceDefinition()->getEntityName();
 
         Session::flash('message', 'A new ' . $entityName . ' was born...');
-        return Redirect::to(action('\\' . self::class . '@index'));
+        return Redirect::to(
+            action(
+                '\\' . self::class . '@index',
+                $this->getRouteParameters($request, Action::INDEX)
+            )
+        );
     }
 
     /**
      * Executed after store.
+     * @param Request $request
      * @param RESTResource $resource
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
-    protected function afterUpdate(RESTResource $resource)
+    protected function afterUpdate(Request $request, RESTResource $resource)
     {
         $entityName = $this->getResourceDefinition()->getEntityName();
 
         Session::flash('message', 'Saved.');
-        return Redirect::to(action('\\' . self::class . '@index'));
+        return Redirect::to(
+            action(
+                '\\' . self::class . '@index',
+                $this->getRouteParameters($request, Action::INDEX)
+            )
+        );
     }
 
     /**
      * Executed after destroy.
+     * @param Request $request
      * @param RESTResource $resource
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
-    protected function afterDestroy(RESTResource $resource)
+    protected function afterDestroy(Request $request, RESTResource $resource)
     {
         $entityName = $this->getResourceDefinition()->getEntityName();
 
         Session::flash('message', 'Deleted.');
-        return Redirect::to(action('\\' . self::class . '@index'));
+        return Redirect::to(
+            action(
+                '\\' . self::class . '@index',
+                $this->getRouteParameters($request, Action::INDEX)
+            )
+        );
     }
 
     protected function handleErrorResponse(JsonResponse $response, $redirectMethod)
@@ -453,5 +600,57 @@ trait CrudController
             ->with('message', new HtmlString($message))
             ->withInput()
             ;
+    }
+
+    /**
+     * @param Request $request
+     * @return Request
+     */
+    protected function transformFormInput(Request $request)
+    {
+        $out = [];
+
+        $fields = $request->input('fields');
+
+        foreach ($fields as $k => $v) {
+            if (is_array($v)) {
+                $value = $this->transformInputField($v);
+                if ($value) {
+                    $out[$k] = $value;
+                }
+            }
+        }
+
+        $newRequest = $request->duplicate();
+        $newRequest->replace($out);
+
+        //$request->request = $out;
+        return $newRequest;
+    }
+
+    /**
+     * @param array $v
+     * @return mixed|null|string
+     */
+    protected function transformInputField(array $v)
+    {
+        switch ($v['type']) {
+            case 'dateTime':
+
+                if (isset($v['date']) && isset($v['time'])) {
+                    $dateTime = Carbon::parse($v['date'] . ' ' . $v['time']);
+                    return $dateTime->format(DATE_RFC822);
+                }
+
+                break;
+
+            default:
+                if (isset($v['value'])) {
+                    return $v['value'];
+                }
+                break;
+        }
+
+        return null;
     }
 }
