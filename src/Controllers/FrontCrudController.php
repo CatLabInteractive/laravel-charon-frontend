@@ -190,9 +190,11 @@ trait FrontCrudController
 
                 $childResourceDefinition = $relationship->getField()->getChildResource();
 
-                if (isset($this->childControllerMap[get_class($childResourceDefinition)])) {
-                    $childController = new $this->childControllerMap[get_class($childResourceDefinition)];
+                if (!isset($this->childControllerMap[get_class($childResourceDefinition)])) {
+                    continue;
                 }
+
+                $childController = new $this->childControllerMap[get_class($childResourceDefinition)];
 
                 $data['relationships'][] = [
                     'property' => $relationship,
