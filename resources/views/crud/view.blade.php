@@ -8,7 +8,7 @@
     @foreach($resource->getProperties()->getResourceFields()->getValues() as $field)
 
         <tr>
-            <th>{{ $field->getField()->getName() }}</th>
+            <th>{{ ucfirst($field->getField()->getDisplayName()) }}</th>
             <th>{{ $field->getValue() }}</th>
         </tr>
 

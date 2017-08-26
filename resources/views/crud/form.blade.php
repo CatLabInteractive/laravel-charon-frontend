@@ -11,11 +11,11 @@
 
         @foreach($fields as $field)
 
-            {{ Form::label($field->getName(), ucfirst($field->getName())) }}
+            {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
             {{ $field->getType() }}
 
             <?php
-                $oldValue = (Form::old($field->getName())) ??
+                $oldValue = (Form::old($field->getDisplayName())) ??
                     (isset($resource) ? $resource->getProperties()->getProperty($field)->getValue() : '');
 
                 $properties = [
@@ -23,15 +23,25 @@
                 ];
             ?>
 
-            {{ Form::hidden('fields[' . $field->getName() . '][type]', $field->getType()) }}
+            {{ Form::hidden('fields[' . $field->getDisplayName() . '][type]', $field->getType()) }}
 
             @if($field->getType() === 'dateTime')
                 <?php $dateTime = \Carbon\Carbon::parse($oldValue); ?>
 
-                {{ Form::date('fields[' . $field->getName() . '][date]', $dateTime ? $dateTime->format('Y-m-d') : null, $properties) }}
-                {{ Form::time('fields[' . $field->getName() . '][time]', $dateTime ? $dateTime->format('H:i') : null, $properties) }}
+                {{ Form::date('fields[' . $field->getDisplayName() . '][date]', $dateTime ? $dateTime->format('Y-m-d') : null, $properties) }}
+                {{ Form::time('fields[' . $field->getDisplayName() . '][time]', $dateTime ? $dateTime->format('H:i') : null, $properties) }}
             @else
-                {{ Form::text('fields[' . $field->getName() . '][value]', $oldValue, $properties) }}
+                <?php
+                    $allowedValues = [];
+                    foreach ($field->getAllowedValues() as $v) {
+                        $allowedValues[$v] = $v;
+                    }
+                ?>
+                @if(count($allowedValues) > 0)
+                    {{ Form::select('fields[' . $field->getDisplayName() . '][value]', $allowedValues, $oldValue, $properties) }}
+                @else
+                    {{ Form::text('fields[' . $field->getDisplayName() . '][value]', $oldValue, $properties) }}
+                @endif
             @endif
 
         @endforeach

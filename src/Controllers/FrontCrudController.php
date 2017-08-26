@@ -5,6 +5,7 @@ namespace CatLab\CharonFrontend\Controllers;
 use Carbon\Carbon;
 use CatLab\Charon\Collections\ResourceCollection;
 use CatLab\Charon\Enums\Action;
+use CatLab\Charon\Interfaces\Context as ContextContract;
 use CatLab\Charon\Interfaces\ResourceDefinition;
 use CatLab\Charon\Laravel\Controllers\ResourceController;
 use CatLab\Charon\Models\Context;
@@ -12,11 +13,14 @@ use CatLab\Charon\Models\Properties\Base\Field;
 use CatLab\Charon\Models\Properties\RelationshipField;
 use CatLab\Charon\Models\ResourceResponse;
 use CatLab\Charon\Models\RESTResource;
-use CatLab\Charon\Models\Values\Base\RelationshipValue;
 use CatLab\Charon\Models\Values\ChildrenValue;
+use CatLab\CharonFrontend\Contracts\FrontCrudControllerContract;
 use CatLab\CharonFrontend\Exceptions\UnexpectedResponse;
 use CatLab\CharonFrontend\Exceptions\UnresolvedMethodException;
-use CatLab\CharonFrontend\Tools\Table;
+
+use CatLab\CharonFrontend\Models\Table\ResourceAction;
+use CatLab\Laravel\Table\Models\CollectionAction;
+use CatLab\Laravel\Table\Table;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -58,6 +62,10 @@ trait FrontCrudController
      */
     private $childControllerMap = [];
 
+    /**
+     * Map actions to api controller actions.
+     * @var array
+     */
     protected $routeMap = [
         Action::INDEX => 'index',
         Action::CREATE => 'store',
@@ -66,6 +74,10 @@ trait FrontCrudController
         Action::DESTROY => 'destroy'
     ];
 
+    /**
+     * Map actions to front controller actions.
+     * @var array
+     */
     protected $frontControllerRouteMap = [
         Action::INDEX => 'index',
         Action::CREATE => 'create',
@@ -93,57 +105,28 @@ trait FrontCrudController
             throw UnexpectedResponse::createNoResourceCollection($response);
         }
 
-        $table = new Table(
+        $table = $this->getTableForResourceCollection(
+            $request,
             $resourceCollection,
             $this->getResourceDefinition(),
             $response->getContext()
         );
 
-        if ($this->hasMethod(Action::VIEW)) {
-            $table->action(
-                $this->getControllerAction(Action::VIEW),
-                $this->getRouteParameters($request, Action::VIEW),
-                'Show'
-            );
-        }
-
-        if ($this->hasMethod(Action::EDIT)) {
-            $table->action(
-                $this->getControllerAction(Action::EDIT),
-                $this->getRouteParameters($request, Action::EDIT),
-                'Edit'
-            );
-        }
-
-        if ($this->hasMethod(Action::DESTROY)) {
-            $table->action(
-                $this->getControllerAction(Action::DESTROY),
-                $this->getRouteParameters($request, Action::DESTROY),
-                'Delete'
-            );
-        }
-
         $view = $this->getView('index');
-
-        $actions = [];
-
-        if ($this->hasMethod(Action::CREATE)) {
-            $actions[] = $this->getAction('create');
-        }
-
-        return view($view, [
-            'table' => $table,
-            'actions' => $actions
-        ]);
+        return view($view, ['table' => $table]);
     }
 
     /**
      * Show the form for creating a new resource.
      *
-     * @return \Illuminate\Http\Response
+     * @param Request $request
+     * @return Response
      */
-    public function create()
+    public function create(Request $request)
     {
+        // set the return parameter
+        $request->session()->put('frontcrud_index_redirect', $request->input($this->getReturnParameter()));
+
         return $this->formView(Action::CREATE, 'store');
     }
 
@@ -183,6 +166,10 @@ trait FrontCrudController
             'relationships' => []
         ];
 
+        if (! ($resource instanceof RESTResource)) {
+            abort(404, 'Only Resources can be shown.');
+        }
+
         // Look for relationships and build tables
         foreach ($resource->getProperties()->getRelationships()->getValues() as $relationship) {
 
@@ -195,6 +182,11 @@ trait FrontCrudController
                 }
 
                 $childController = new $this->childControllerMap[get_class($childResourceDefinition)];
+                if (! ($childController instanceof FrontCrudControllerContract)) {
+                    abort(500, 'Only controllers implementing FrontCrudControllerContract' .
+                        'can be used for expanding relationships'
+                    );
+                }
 
                 $data['relationships'][] = [
                     'property' => $relationship,
@@ -220,6 +212,9 @@ trait FrontCrudController
      */
     public function edit(Request $request)
     {
+        // set the return parameter
+        $request->session()->put('frontcrud_index_redirect', $request->input($this->getReturnParameter()));
+
         $resource = $this->dispatchToApi(Action::VIEW, $request);
         return $this->formView(Action::CREATE, 'update', $resource->getResource());
     }
@@ -242,8 +237,16 @@ trait FrontCrudController
         return $this->afterUpdate($request, $response->getResource());
     }
 
+    /**
+     * Show confirm delete dialog.
+     * @param Request $request
+     * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
+     */
     public function confirmDelete(Request $request)
     {
+        // set the return parameter
+        $request->session()->put('frontcrud_index_redirect', $request->input($this->getReturnParameter()));
+
         $resource = $this->dispatchToApi(Action::VIEW, $request);
         $resource = $resource->getResource();
 
@@ -285,15 +288,15 @@ trait FrontCrudController
      * @param Request $request
      * @param ResourceCollection $collection
      * @param ResourceDefinition $resourceDefinition
-     * @param Context $context
+     * @param ContextContract $context
      * @return Table
      */
     public function getTableForResourceCollection (
         Request $request,
         ResourceCollection $collection,
         ResourceDefinition $resourceDefinition,
-        Context $context
-    ) {
+        ContextContract $context
+    ): Table {
         $table = new Table(
             $collection,
             $resourceDefinition,
@@ -301,30 +304,153 @@ trait FrontCrudController
         );
 
         if ($this->hasMethod(Action::VIEW)) {
-            $table->action(
-                $this->getControllerAction(Action::VIEW),
-                $this->getRouteParameters($request, Action::VIEW),
-                'Show'
+            $table->modelAction(
+                (new ResourceAction($this->getControllerAction(Action::VIEW), 'Show'))
+                    ->setRouteParameters($this->getShowRouteParameters($request))
+                    ->setQueryParameters($this->getShowQueryParameters($request))
+                    ->setCondition(function($model) use ($request) {
+                        return $this->isMethodAllowed($request, Action::VIEW, $model);
+                    })
             );
         }
 
         if ($this->hasMethod(Action::EDIT)) {
-            $table->action(
-                $this->getControllerAction(Action::EDIT),
-                $this->getRouteParameters($request, Action::EDIT),
-                'Edit'
+            $table->modelAction(
+                (new ResourceAction($this->getControllerAction(Action::EDIT), 'Edit'))
+                    ->setRouteParameters($this->getEditRouteParameters($request))
+                    ->setQueryParameters($this->getEditQueryParameters($request))
+                    ->setCondition(function($model) use ($request) {
+                        return $this->isMethodAllowed($request, Action::EDIT, $model);
+                    })
             );
         }
 
         if ($this->hasMethod(Action::DESTROY)) {
-            $table->action(
-                $this->getControllerAction(Action::DESTROY),
-                $this->getRouteParameters($request, Action::DESTROY),
-                'Delete'
+            $table->modelAction(
+                (new ResourceAction($this->getControllerAction(Action::DESTROY), 'Delete'))
+                    ->setRouteParameters($this->getDestroyRouteParameters($request))
+                    ->setQueryParameters($this->getDestroyQueryParameters($request))
+                    ->setCondition(function($model) use ($request) {
+                        return $this->isMethodAllowed($request, Action::DESTROY, $model);
+                    })
+            );
+        }
+
+        // Now set collection actions too
+        if ($this->hasMethod(Action::CREATE)) {
+            $table->collectionAction(
+                (new CollectionAction($this->getControllerAction(Action::CREATE), 'Create'))
+                    ->setRouteParameters($this->getCreateRouteParameters($request))
+                    ->setQueryParameters($this->getCreateQueryParameters($request))
             );
         }
 
         return $table;
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getIndexRouteParameters(Request $request)
+    {
+        return $this->getRouteParameters($request, Action::INDEX);
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getIndexQueryParameters(Request $request)
+    {
+        return [];
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getCreateRouteParameters(Request $request)
+    {
+        return $this->getRouteParameters($request, Action::CREATE);
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getCreateQueryParameters(Request $request)
+    {
+        $parameters = [];
+
+        // Add a return to parameter
+        $parameters[$this->getReturnParameter()] = $request->path();
+
+        return $parameters;
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getDestroyRouteParameters(Request $request)
+    {
+        return $this->getRouteParameters($request, Action::DESTROY);
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getDestroyQueryParameters(Request $request)
+    {
+        $parameters = [];
+
+        // Add a return to parameter
+        $parameters[$this->getReturnParameter()] = $request->path();
+
+        return $parameters;
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getEditRouteParameters(Request $request)
+    {
+        return $this->getRouteParameters($request, Action::EDIT);
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getEditQueryParameters(Request $request)
+    {
+        $parameters = [];
+
+        // Add a return to parameter
+        $parameters[$this->getReturnParameter()] = $request->path();
+
+        return $parameters;
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getShowRouteParameters(Request $request)
+    {
+        return $this->getRouteParameters($request, Action::VIEW);
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function getShowQueryParameters(Request $request)
+    {
+        return [];
     }
 
     /**
@@ -537,12 +663,8 @@ trait FrontCrudController
         $entityName = $this->getResourceDefinition()->getEntityName();
 
         Session::flash('message', 'A new ' . $entityName . ' was born...');
-        return Redirect::to(
-            action(
-                '\\' . self::class . '@index',
-                $this->getRouteParameters($request, Action::INDEX)
-            )
-        );
+
+        return $this->redirectBackToIndex($request);
     }
 
     /**
@@ -554,14 +676,9 @@ trait FrontCrudController
     protected function afterUpdate(Request $request, RESTResource $resource)
     {
         $entityName = $this->getResourceDefinition()->getEntityName();
-
         Session::flash('message', 'Saved.');
-        return Redirect::to(
-            action(
-                '\\' . self::class . '@index',
-                $this->getRouteParameters($request, Action::INDEX)
-            )
-        );
+
+        return $this->redirectBackToIndex($request);
     }
 
     /**
@@ -573,16 +690,16 @@ trait FrontCrudController
     protected function afterDestroy(Request $request, RESTResource $resource)
     {
         $entityName = $this->getResourceDefinition()->getEntityName();
-
         Session::flash('message', 'Deleted.');
-        return Redirect::to(
-            action(
-                '\\' . self::class . '@index',
-                $this->getRouteParameters($request, Action::INDEX)
-            )
-        );
+
+        return $this->redirectBackToIndex($request);
     }
 
+    /**
+     * @param JsonResponse $response
+     * @param $redirectMethod
+     * @return $this
+     */
     protected function handleErrorResponse(JsonResponse $response, $redirectMethod)
     {
         $data = $response->getData(true);
@@ -600,11 +717,11 @@ trait FrontCrudController
 
         return redirect()->back()
             ->with('message', new HtmlString($message))
-            ->withInput()
-            ;
+            ->withInput();
     }
 
     /**
+     * Translate form input into Charon post input.
      * @param Request $request
      * @return Request
      */
@@ -654,5 +771,49 @@ trait FrontCrudController
         }
 
         return null;
+    }
+
+    /**
+     * Called after create or destroy;
+     * redirect back to the index page.
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
+    protected function redirectBackToIndex(Request $request)
+    {
+        // look for a return parameter
+        $return = $request->session()->get('frontcrud_index_redirect');
+        if ($return) {
+            $request->session()->forget('frontcrud_index_redirect', null);
+            return Redirect::to($return);
+        }
+
+        // redirect to the actual index
+        $parameters = $this->getIndexRouteParameters($request);
+        return Redirect::to(action('\\' . self::class . '@index', $parameters));
+    }
+
+    /**
+     * @param Request $request
+     * @param $action
+     * @param $model
+     * @return bool
+     */
+    protected function isMethodAllowed(Request $request, $action, RESTResource $model)
+    {
+        // $source contains the original model that this resource was based on.
+        // It's a bit hacky to use, but it allows us to do these late checks.
+        $source = $model->getSource();
+
+        $user = $request->user();
+        return $user->can($action, $source);
+    }
+
+    /**
+     * @return string
+     */
+    protected function getReturnParameter()
+    {
+        return 'return';
     }
 }
