@@ -50,7 +50,7 @@ trait FrontCrudController
      * This method should return an instance of the corresponding api controller.
      * @return ResourceController
      */
-    abstract function createApiController();
+    public abstract function createApiController();
 
     /**
      * @var mixed
@@ -61,6 +61,11 @@ trait FrontCrudController
      * @var mixed
      */
     private $childControllerMap = [];
+
+    /**
+     * @var string
+     */
+    private $layout = 'layouts.app';
 
     /**
      * Map actions to api controller actions.
@@ -113,7 +118,13 @@ trait FrontCrudController
         );
 
         $view = $this->getView('index');
-        return view($view, ['table' => $table]);
+        return view(
+            $view,
+            [
+                'table' => $table,
+                'layout' => $this->layout
+            ]
+        );
     }
 
     /**
@@ -162,6 +173,7 @@ trait FrontCrudController
         $context = $response->getContext();
 
         $data = [
+            'layout' => $this->layout,
             'resource' => $resource,
             'relationships' => []
         ];
@@ -251,11 +263,11 @@ trait FrontCrudController
         $resource = $resource->getResource();
 
         $view = $this->getView(Action::DESTROY);
-
         return view($view, [
             'resource' => $resource,
             'action' => $this->action('destroy'),
-            'back' => $this->action('index')
+            'back' => $this->action('index'),
+            'layout' => $this->layout
         ]);
     }
 
@@ -271,17 +283,6 @@ trait FrontCrudController
         $this->dispatchToApi(Action::DESTROY, $request);
 
         return $this->afterDestroy($request, $resource);
-    }
-
-    /**
-     * @param $resourceDefinitionClassName
-     * @param $controllerClassName
-     * @return $this
-     */
-    protected function setChildController($resourceDefinitionClassName, $controllerClassName)
-    {
-        $this->childControllerMap[$resourceDefinitionClassName] = $controllerClassName;
-        return $this;
     }
 
     /**
@@ -346,6 +347,28 @@ trait FrontCrudController
         }
 
         return $table;
+    }
+
+    /**
+     * @param $resourceDefinitionClassName
+     * @param $controllerClassName
+     * @return $this
+     */
+    protected function setChildController($resourceDefinitionClassName, $controllerClassName)
+    {
+        $this->childControllerMap[$resourceDefinitionClassName] = $controllerClassName;
+        return $this;
+    }
+
+    /**
+     * Change the layout file that will be used by the crud layout.
+     * @param $layout
+     * @return $this
+     */
+    protected function setLayout($layout)
+    {
+        $this->layout = $layout;
+        return $this;
     }
 
     /**
@@ -648,7 +671,8 @@ trait FrontCrudController
             'fields' => $fields,
             'action' => $this->action($processmethod),
             'resource' => $model,
-            'verb' => $verb
+            'verb' => $verb,
+            'layout' => $this->layout
         ]);
     }
 
