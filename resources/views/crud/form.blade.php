@@ -46,6 +46,24 @@
 
         @endforeach
 
+        @foreach($linkables as $linkable)
+
+            <?php
+                $field = $linkable['field'];
+                $values = $linkable['values'];
+
+                if ($oldValue = Form::old($field->getDisplayName())) {}
+                elseif(isset($resource)) {
+                    $value = $resource->getProperties()->getProperty($field)->getValue();
+                    $oldValue = $value['id'];
+                }
+            ?>
+
+            {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
+            {{ Form::select('linkable[' . $field->getDisplayName() . '][id]', $values, $oldValue, $properties) }}
+
+        @endforeach
+
 
     </div>
 

@@ -5,6 +5,7 @@ namespace CatLab\CharonFrontend\Controllers;
 use Carbon\Carbon;
 use CatLab\Charon\Collections\ResourceCollection;
 use CatLab\Charon\Enums\Action;
+use CatLab\Charon\Enums\Cardinality;
 use CatLab\Charon\Interfaces\Context as ContextContract;
 use CatLab\Charon\Interfaces\ResourceDefinition;
 use CatLab\Charon\Laravel\Controllers\ResourceController;
@@ -13,6 +14,7 @@ use CatLab\Charon\Models\Properties\Base\Field;
 use CatLab\Charon\Models\Properties\RelationshipField;
 use CatLab\Charon\Models\ResourceResponse;
 use CatLab\Charon\Models\RESTResource;
+use CatLab\Charon\Models\Values\Base\RelationshipValue;
 use CatLab\Charon\Models\Values\ChildrenValue;
 use CatLab\CharonFrontend\Contracts\FrontCrudControllerContract;
 use CatLab\CharonFrontend\Exceptions\UnexpectedResponse;
@@ -653,6 +655,23 @@ trait FrontCrudController
             )
             ->getWithAction($context->getAction());
 
+        $relationships = $resourceDefinition
+            ->getFields()
+            ->filter(
+                function(Field $field) {
+                    if ($field instanceof RelationshipField) {
+                        if (
+                            $field->getCardinality() === Cardinality::ONE &&
+                            $field->canLinkExistingEntities()
+                        ) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            )
+            ->getWithAction($context->getAction());
+
         $view = $this->getView('form');
 
         switch ($processmethod) {
@@ -667,13 +686,43 @@ trait FrontCrudController
                 break;
         }
 
+        // prepare linksables
+        $linkables = [];
+        foreach ($relationships as $relationship) {
+            $linkables[] = [
+                'field' => $relationship,
+                'values' => $this->resolveValues($relationship)
+            ];
+        }
+
         return view($view, [
             'fields' => $fields,
+            'linkables' => $linkables,
             'action' => $this->action($processmethod),
             'resource' => $model,
             'verb' => $verb,
             'layout' => $this->layout
         ]);
+    }
+
+    /**
+     * @param RelationshipField $field
+     * @return string[]
+     */
+    protected function resolveValues(RelationshipField $field)
+    {
+        $childResource = $field->getChildResource();
+        $entity = $childResource->getEntityClassName();
+
+        // fetch everything.
+        $entities = call_user_func([ $entity, 'all']);
+
+        // @TODO this is wrong, but it works as long as the identifier is called "id" and the name is called "name".
+        $out = [];
+        foreach ($entities as $entity) {
+            $out[$entity->id] = $entity->name;
+        }
+        return $out;
     }
 
     /**
@@ -754,13 +803,22 @@ trait FrontCrudController
         $out = [];
 
         $fields = $request->input('fields');
-
-        foreach ($fields as $k => $v) {
-            if (is_array($v)) {
-                $value = $this->transformInputField($v);
-                if ($value) {
-                    $out[$k] = $value;
+        if (isset($fields)) {
+            foreach ($fields as $k => $v) {
+                if (is_array($v)) {
+                    $value = $this->transformInputField($v);
+                    if ($value) {
+                        $out[$k] = $value;
+                    }
                 }
+            }
+        }
+
+        // Relationships
+        $linkables = $request->input('linkable');
+        if (isset($linkables)) {
+            foreach ($linkables as $k => $v) {
+                $out[$k] = $v;
             }
         }
 
