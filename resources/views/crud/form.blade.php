@@ -2,7 +2,11 @@
 
 @section('cfcontent')
 
-    {{ Html::ul($errors->all()) }}
+    @if(!$errors->isEmpty())
+        <div class="alert alert-warning">
+            {{ Html::ul($errors->all()) }}
+        </div>
+    @endif
 
     {{ Form::open(array('url' => $action)) }}
     {{ method_field($verb) }}
@@ -12,7 +16,6 @@
         @foreach($fields as $field)
 
             {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
-            {{ $field->getType() }}
 
             <?php
                 $oldValue = (Form::old($field->getDisplayName())) ??
@@ -26,7 +29,7 @@
             {{ Form::hidden('fields[' . $field->getDisplayName() . '][type]', $field->getType()) }}
 
             @if($field->getType() === 'dateTime')
-                <?php $dateTime = \Carbon\Carbon::parse($oldValue); ?>
+                <?php $dateTime = $oldValue ? \Carbon\Carbon::parse($oldValue) : null; ?>
 
                 {{ Form::date('fields[' . $field->getDisplayName() . '][date]', $dateTime ? $dateTime->format('Y-m-d') : null, $properties) }}
                 {{ Form::time('fields[' . $field->getDisplayName() . '][time]', $dateTime ? $dateTime->format('H:i') : null, $properties) }}
