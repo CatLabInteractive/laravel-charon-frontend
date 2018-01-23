@@ -18,12 +18,12 @@
             {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
 
             <?php
-                $oldValue = (Form::old($field->getDisplayName())) ??
-                    (isset($resource) ? $resource->getProperties()->getProperty($field)->getValue() : '');
+            $oldValue = (Form::old($field->getDisplayName())) ??
+                (isset($resource) ? $resource->getProperties()->getProperty($field)->getValue() : '');
 
-                $properties = [
-                    'class' => 'form-control'
-                ];
+            $properties = [
+                'class' => 'form-control'
+            ];
             ?>
 
             {{ Form::hidden('fields[' . $field->getDisplayName() . '][type]', $field->getType()) }}
@@ -35,10 +35,10 @@
                 {{ Form::time('fields[' . $field->getDisplayName() . '][time]', $dateTime ? $dateTime->format('H:i') : null, $properties) }}
             @else
                 <?php
-                    $allowedValues = [];
-                    foreach ($field->getAllowedValues() as $v) {
-                        $allowedValues[$v] = $v;
-                    }
+                $allowedValues = [];
+                foreach ($field->getAllowedValues() as $v) {
+                    $allowedValues[$v] = $v;
+                }
                 ?>
                 @if(count($allowedValues) > 0)
                     {{ Form::select('fields[' . $field->getDisplayName() . '][value]', $allowedValues, $oldValue, $properties) }}
@@ -52,14 +52,21 @@
         @foreach($linkables as $linkable)
 
             <?php
-                $field = $linkable['field'];
-                $values = $linkable['values'];
+            $field = $linkable['field'];
 
-                if ($oldValue = Form::old($field->getDisplayName())) {}
-                elseif(isset($resource)) {
-                    $value = $resource->getProperties()->getProperty($field)->getValue();
-                    $oldValue = $value['id'];
-                }
+            $values = [];
+
+            if (!$field->isRequired()) {
+                $values[null] = '';
+            }
+
+            $values = array_merge($values, $linkable['values']);
+
+            if ($oldValue = Form::old($field->getDisplayName())) {}
+            elseif(isset($resource) && $resource->getProperties()->getProperty($field)) {
+                $value = $resource->getProperties()->getProperty($field)->getValue();
+                $oldValue = $value['id'];
+            }
             ?>
 
             {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
