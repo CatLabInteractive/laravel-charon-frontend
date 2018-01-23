@@ -37,12 +37,22 @@ use Session;
 trait FrontCrudController
 {
     /**
-     * Set routes
      * @param $path
      * @param $controller
      * @param string $modelId
      */
     public static function routes($path, $controller, $modelId = 'id')
+    {
+        self::traitRoutes($path, $controller, $modelId);
+    }
+
+    /**
+     * Set routes
+     * @param $path
+     * @param $controller
+     * @param string $modelId
+     */
+    public static function traitRoutes($path, $controller, $modelId = 'id')
     {
         \Route::resource($path, $controller);
         \Route::get($path . '/{' . $modelId . '}/delete', $controller . '@confirmDelete');
