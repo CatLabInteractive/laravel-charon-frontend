@@ -300,6 +300,22 @@ trait FrontCrudController
         ResourceDefinition $resourceDefinition,
         ContextContract $context
     ): Table {
+        return $this->traitGetTableForResourceCollection($request, $collection, $resourceDefinition, $context);
+    }
+
+    /**
+     * @param Request $request
+     * @param ResourceCollection $collection
+     * @param ResourceDefinition $resourceDefinition
+     * @param ContextContract $context
+     * @return Table
+     */
+    public function traitGetTableForResourceCollection (
+        Request $request,
+        ResourceCollection $collection,
+        ResourceDefinition $resourceDefinition,
+        ContextContract $context
+    ): Table {
         $table = new Table(
             $collection,
             $resourceDefinition,
@@ -818,9 +834,7 @@ trait FrontCrudController
         $linkables = $request->input('linkable');
         if (isset($linkables)) {
             foreach ($linkables as $k => $v) {
-                if (!$this->isLinkableEmpty($v)) {
-                    $out[$k] = $v;
-                }
+                $out[$k] = $v;
             }
         }
 
@@ -829,24 +843,6 @@ trait FrontCrudController
 
         //$request->request = $out;
         return $newRequest;
-    }
-
-    /**
-     * @param $v
-     * @return bool
-     */
-    protected function isLinkableEmpty($v)
-    {
-        if (!is_array($v)) {
-            return true;
-        }
-
-        foreach ($v as $vv) {
-            if (!empty($vv)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
