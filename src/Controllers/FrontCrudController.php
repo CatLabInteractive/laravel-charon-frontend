@@ -818,7 +818,9 @@ trait FrontCrudController
         $linkables = $request->input('linkable');
         if (isset($linkables)) {
             foreach ($linkables as $k => $v) {
-                $out[$k] = $v;
+                if (!$this->isLinkableEmpty($v)) {
+                    $out[$k] = $v;
+                }
             }
         }
 
@@ -827,6 +829,24 @@ trait FrontCrudController
 
         //$request->request = $out;
         return $newRequest;
+    }
+
+    /**
+     * @param $v
+     * @return bool
+     */
+    protected function isLinkableEmpty($v)
+    {
+        if (!is_array($v)) {
+            return true;
+        }
+
+        foreach ($v as $vv) {
+            if (!empty($vv)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

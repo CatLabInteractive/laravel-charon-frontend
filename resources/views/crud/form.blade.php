@@ -60,7 +60,9 @@
                 $values[null] = '';
             }
 
-            $values = array_merge($values, $linkable['values']);
+            foreach ($linkable['values'] as $k => $v) {
+                $values[$k] = $v;
+            }
 
             if ($oldValue = Form::old($field->getDisplayName())) {}
             elseif(isset($resource) && $resource->getProperties()->getProperty($field)) {
