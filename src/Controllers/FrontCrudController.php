@@ -37,12 +37,22 @@ use Session;
 trait FrontCrudController
 {
     /**
-     * Set routes
      * @param $path
      * @param $controller
      * @param string $modelId
      */
     public static function routes($path, $controller, $modelId = 'id')
+    {
+        self::traitRoutes($path, $controller, $modelId);
+    }
+
+    /**
+     * Set routes
+     * @param $path
+     * @param $controller
+     * @param string $modelId
+     */
+    public static function traitRoutes($path, $controller, $modelId = 'id')
     {
         \Route::resource($path, $controller);
         \Route::get($path . '/{' . $modelId . '}/delete', $controller . '@confirmDelete');
@@ -295,6 +305,22 @@ trait FrontCrudController
      * @return Table
      */
     public function getTableForResourceCollection (
+        Request $request,
+        ResourceCollection $collection,
+        ResourceDefinition $resourceDefinition,
+        ContextContract $context
+    ): Table {
+        return $this->traitGetTableForResourceCollection($request, $collection, $resourceDefinition, $context);
+    }
+
+    /**
+     * @param Request $request
+     * @param ResourceCollection $collection
+     * @param ResourceDefinition $resourceDefinition
+     * @param ContextContract $context
+     * @return Table
+     */
+    public function traitGetTableForResourceCollection (
         Request $request,
         ResourceCollection $collection,
         ResourceDefinition $resourceDefinition,
