@@ -19,7 +19,8 @@
 
             <?php
             $oldValue = (Form::old($field->getDisplayName())) ??
-                (isset($resource) ? $resource->getProperties()->getProperty($field)->getValue() : '');
+                (isset($resource) && $resource->getProperties()->getProperty($field)
+                    ? $resource->getProperties()->getProperty($field)->getValue() : '');
 
             $properties = [
                 'class' => 'form-control'
