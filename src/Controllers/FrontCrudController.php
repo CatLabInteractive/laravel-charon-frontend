@@ -562,6 +562,7 @@ trait FrontCrudController
     }
 
     /**
+     * Dispatch an action to the API.
      * @param $action
      * @param Request $request
      * @param array $parameters
@@ -575,12 +576,22 @@ trait FrontCrudController
         }
 
         $method = $this->resolveMethod($action);
+        return $this->callApiMethod($method, $request, $parameters);
+    }
+
+    /**
+     * Call a method on the API Controller.
+     * @param $method
+     * @param Request $request
+     * @param array $parameters
+     * @return mixed
+     */
+    protected function callApiMethod($method, Request $request, $parameters = [])
+    {
         $controller = $this->getApiController();
 
         array_unshift($parameters, $request);
-
-        $response = call_user_func_array([ $controller, $method ], $parameters);
-        return $response;
+        return call_user_func_array([ $controller, $method ], $parameters);
     }
 
     /**
