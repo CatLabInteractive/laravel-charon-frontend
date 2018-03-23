@@ -10,7 +10,7 @@
         }
     ],
     "require": {
-        "catlabinteractive/charon-laravel": "dev-master",
+        "catlabinteractive/charon-laravel": "^1.0.10",
         "catlabinteractive/cursor-pagination": "^1.0"
     },
     "autoload": {

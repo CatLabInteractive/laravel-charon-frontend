@@ -572,7 +572,9 @@ trait FrontCrudController
     {
         $requestParameters = $this->getApiControllerParameters($request, $action);
         if ($requestParameters !== null) {
-            $request->attributes->replace($requestParameters);
+            foreach ($requestParameters as $k => $v) {
+                $request->route()->setParameter($k, $v);
+            }
         }
 
         $method = $this->resolveMethod($action);
