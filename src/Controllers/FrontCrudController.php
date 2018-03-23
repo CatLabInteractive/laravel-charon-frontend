@@ -334,7 +334,10 @@ trait FrontCrudController
 
         if ($this->hasMethod(Action::VIEW)) {
             $table->modelAction(
-                (new ResourceAction($this->getControllerAction(Action::VIEW), 'Show'))
+                (new ResourceAction(
+                    $this->getControllerAction(Action::VIEW),
+                    $this->getActionText(Action::VIEW, $resourceDefinition)
+                ))
                     ->setRouteParameters($this->getShowRouteParameters($request))
                     ->setQueryParameters($this->getShowQueryParameters($request))
                     ->setCondition(function($model) use ($request) {
@@ -345,7 +348,10 @@ trait FrontCrudController
 
         if ($this->hasMethod(Action::EDIT)) {
             $table->modelAction(
-                (new ResourceAction($this->getControllerAction(Action::EDIT), 'Edit'))
+                (new ResourceAction(
+                    $this->getControllerAction(Action::EDIT),
+                    $this->getActionText(Action::EDIT, $resourceDefinition)
+                ))
                     ->setRouteParameters($this->getEditRouteParameters($request))
                     ->setQueryParameters($this->getEditQueryParameters($request))
                     ->setCondition(function($model) use ($request) {
@@ -356,7 +362,10 @@ trait FrontCrudController
 
         if ($this->hasMethod(Action::DESTROY)) {
             $table->modelAction(
-                (new ResourceAction($this->getControllerAction(Action::DESTROY), 'Delete'))
+                (new ResourceAction(
+                    $this->getControllerAction(Action::DESTROY),
+                    $this->getActionText(Action::DESTROY, $resourceDefinition)
+                ))
                     ->setRouteParameters($this->getDestroyRouteParameters($request))
                     ->setQueryParameters($this->getDestroyQueryParameters($request))
                     ->setCondition(function($model) use ($request) {
@@ -366,9 +375,15 @@ trait FrontCrudController
         }
 
         // Now set collection actions too
-        if ($this->hasMethod(Action::CREATE)) {
+        if (
+            $this->hasMethod(Action::CREATE) &&
+            $this->isMethodAllowed($request, Action::CREATE, $resourceDefinition->getEntityClassName())
+        ) {
             $table->collectionAction(
-                (new CollectionAction($this->getControllerAction(Action::CREATE), 'Create'))
+                (new CollectionAction(
+                    $this->getControllerAction(Action::CREATE),
+                    $this->getActionText(Action::CREATE, $resourceDefinition)
+                ))
                     ->setRouteParameters($this->getCreateRouteParameters($request))
                     ->setQueryParameters($this->getCreateQueryParameters($request))
             );
@@ -547,6 +562,7 @@ trait FrontCrudController
     }
 
     /**
+     * Dispatch an action to the API.
      * @param $action
      * @param Request $request
      * @param array $parameters
@@ -560,12 +576,22 @@ trait FrontCrudController
         }
 
         $method = $this->resolveMethod($action);
+        return $this->callApiMethod($method, $request, $parameters);
+    }
+
+    /**
+     * Call a method on the API Controller.
+     * @param $method
+     * @param Request $request
+     * @param array $parameters
+     * @return mixed
+     */
+    protected function callApiMethod($method, Request $request, $parameters = [])
+    {
         $controller = $this->getApiController();
 
         array_unshift($parameters, $request);
-
-        $response = call_user_func_array([ $controller, $method ], $parameters);
-        return $response;
+        return call_user_func_array([ $controller, $method ], $parameters);
     }
 
     /**
@@ -833,7 +859,7 @@ trait FrontCrudController
             foreach ($fields as $k => $v) {
                 if (is_array($v)) {
                     $value = $this->transformInputField($v);
-                    if ($value) {
+                    if ($value !== null) {
                         $out[$k] = $value;
                     }
                 }
@@ -844,7 +870,9 @@ trait FrontCrudController
         $linkables = $request->input('linkable');
         if (isset($linkables)) {
             foreach ($linkables as $k => $v) {
-                $out[$k] = $v;
+                if ($this->isLinkableValid($v)) {
+                    $out[$k] = $v;
+                }
             }
         }
 
@@ -853,6 +881,24 @@ trait FrontCrudController
 
         //$request->request = $out;
         return $newRequest;
+    }
+
+    /**
+     * @param $identifiers
+     * @return bool
+     */
+    protected function isLinkableValid($identifiers)
+    {
+        if (!is_array($identifiers)) {
+            return false;
+        }
+
+        foreach ($identifiers as $identifier) {
+            if (!empty($identifier)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -870,6 +916,9 @@ trait FrontCrudController
                 }
 
                 break;
+
+            case 'boolean':
+                return isset($v['value']) && $v['value'];
 
             default:
                 if (isset($v['value'])) {
@@ -907,14 +956,73 @@ trait FrontCrudController
      * @param $model
      * @return bool
      */
-    protected function isMethodAllowed(Request $request, $action, RESTResource $model)
+    protected function isMethodAllowed(Request $request, $action, $model = null)
     {
-        // $source contains the original model that this resource was based on.
-        // It's a bit hacky to use, but it allows us to do these late checks.
-        $source = $model->getSource();
+        if ($model instanceof RESTResource) {
+            // $source contains the original model that this resource was based on.
+            // It's a bit hacky to use, but it allows us to do these late checks.
+            $source = $model->getSource();
+        } elseif (is_string($model)) {
+            $source = $model;
+        } else {
+            $source = $this->getResourceDefinition()->getEntityClassName();
+        }
+
+        $parameters = [
+            $source
+        ];
+
+        // Merge with authorize parameters
+        $externalParameters = $this->getAuthorizeParameters($request, $action);
+        if ($externalParameters) {
+            $parameters = array_merge($parameters, $externalParameters);
+        }
 
         $user = $request->user();
-        return $user->can($action, $source);
+        return $user->can($action, $parameters);
+    }
+
+    /**
+     * @param Request $request
+     * @param $action
+     * @return array
+     */
+    protected function getAuthorizeParameters(Request $request, $action)
+    {
+        return null;
+    }
+
+    /**
+     * @param $action
+     * @param ResourceDefinition $resourceDefinition
+     * @return string
+     */
+    protected function getActionText($action, ResourceDefinition $resourceDefinition)
+    {
+        return $this->traitGetActionText($action, $resourceDefinition);
+    }
+
+    /**
+     * @param $action
+     * @param ResourceDefinition $resourceDefinition
+     */
+    protected function traitGetActionText($action, ResourceDefinition $resourceDefinition)
+    {
+        switch ($action) {
+            case Action::CREATE:
+                return 'Create ' . $resourceDefinition->getEntityName();
+
+            case Action::EDIT:
+                return 'Edit';
+
+            case Action::VIEW:
+                return 'View';
+
+            case Action::DESTROY:
+                return 'Delete';
+        }
+
+        return ucfirst(strtolower($action));
     }
 
     /**

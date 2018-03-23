@@ -15,11 +15,10 @@
 
         @foreach($fields as $field)
 
-            {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
-
             <?php
             $oldValue = (Form::old($field->getDisplayName())) ??
-                (isset($resource) ? $resource->getProperties()->getProperty($field)->getValue() : '');
+                (isset($resource) && $resource->getProperties()->getProperty($field)
+                    ? $resource->getProperties()->getProperty($field)->getValue() : '');
 
             $properties = [
                 'class' => 'form-control'
@@ -31,8 +30,21 @@
             @if($field->getType() === 'dateTime')
                 <?php $dateTime = $oldValue ? \Carbon\Carbon::parse($oldValue) : null; ?>
 
-                {{ Form::date('fields[' . $field->getDisplayName() . '][date]', $dateTime ? $dateTime->format('Y-m-d') : null, $properties) }}
-                {{ Form::time('fields[' . $field->getDisplayName() . '][time]', $dateTime ? $dateTime->format('H:i') : null, $properties) }}
+                <div class="form-group row">
+                    {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
+                    {{ Form::date('fields[' . $field->getDisplayName() . '][date]', $dateTime ? $dateTime->format('Y-m-d') : null, $properties) }}
+                    {{ Form::time('fields[' . $field->getDisplayName() . '][time]', $dateTime ? $dateTime->format('H:i') : null, $properties) }}
+                </div>
+
+            @elseif($field->getType() === 'boolean')
+
+                <div class="form-check">
+
+                    {{ Form::checkbox('fields[' . $field->getDisplayName() . '][value]', 1, !!$oldValue) }}
+                    {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
+
+                </div>
+
             @else
                 <?php
                 $allowedValues = [];
@@ -40,11 +52,14 @@
                     $allowedValues[$v] = $v;
                 }
                 ?>
-                @if(count($allowedValues) > 0)
-                    {{ Form::select('fields[' . $field->getDisplayName() . '][value]', $allowedValues, $oldValue, $properties) }}
-                @else
-                    {{ Form::text('fields[' . $field->getDisplayName() . '][value]', $oldValue, $properties) }}
-                @endif
+                <div class="form-group row">
+                    {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
+                    @if(count($allowedValues) > 0)
+                        {{ Form::select('fields[' . $field->getDisplayName() . '][value]', $allowedValues, $oldValue, $properties) }}
+                    @else
+                        {{ Form::text('fields[' . $field->getDisplayName() . '][value]', $oldValue, $properties) }}
+                    @endif
+                </div>
             @endif
 
         @endforeach
@@ -71,15 +86,19 @@
             }
             ?>
 
-            {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
-            {{ Form::select('linkable[' . $field->getDisplayName() . '][id]', $values, $oldValue, $properties) }}
+            <div class="form-group row">
+                {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
+                {{ Form::select('linkable[' . $field->getDisplayName() . '][id]', $values, $oldValue, $properties) }}
+            </div>
 
         @endforeach
 
 
     </div>
 
-    {{ Form::submit(ucfirst($verb), array('class' => 'btn btn-primary')) }}
+    <div class="form-group row">
+        {{ Form::submit(ucfirst($verb), array('class' => 'btn btn-primary')) }}
+    </div>
 
     {{ Form::close() }}
 
