@@ -860,10 +860,7 @@ trait FrontCrudController
         if (isset($fields)) {
             foreach ($fields as $k => $v) {
                 if (is_array($v)) {
-                    $value = $this->transformInputField($v);
-                    if ($value !== null) {
-                        $out[$k] = $value;
-                    }
+                    $out[$k] = $this->transformInputField($v);
                 }
             }
         }
