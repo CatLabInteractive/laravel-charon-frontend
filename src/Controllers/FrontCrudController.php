@@ -871,6 +871,8 @@ trait FrontCrudController
             foreach ($linkables as $k => $v) {
                 if ($this->isLinkableValid($v)) {
                     $out[$k] = $v;
+                } else {
+                    $out[$k] = null;
                 }
             }
         }
