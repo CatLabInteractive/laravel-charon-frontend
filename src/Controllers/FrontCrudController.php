@@ -11,6 +11,7 @@ use CatLab\Charon\Interfaces\ResourceDefinition;
 use CatLab\Charon\Laravel\Controllers\ResourceController;
 use CatLab\Charon\Models\Context;
 use CatLab\Charon\Models\Properties\Base\Field;
+use CatLab\Charon\Models\Properties\IdentifierField;
 use CatLab\Charon\Models\Properties\RelationshipField;
 use CatLab\Charon\Models\ResourceResponse;
 use CatLab\Charon\Models\RESTResource;
@@ -240,7 +241,7 @@ trait FrontCrudController
         $request->session()->put('frontcrud_index_redirect', $request->input($this->getReturnParameter()));
 
         $resource = $this->dispatchToApi(Action::VIEW, $request);
-        return $this->formView(Action::CREATE, 'update', $resource->getResource());
+        return $this->formView(Action::EDIT, 'update', $resource->getResource());
     }
 
     /**
@@ -704,7 +705,8 @@ trait FrontCrudController
             ->getFields()
             ->filter(
                 function(Field $field) {
-                    return !$field instanceof RelationshipField;
+                    return !$field instanceof IdentifierField
+                        && !$field instanceof RelationshipField;
                 }
             )
             ->getWithAction($context->getAction());
