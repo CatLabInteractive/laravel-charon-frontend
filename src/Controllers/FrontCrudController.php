@@ -793,7 +793,7 @@ trait FrontCrudController
 
         Session::flash('message', 'A new ' . $entityName . ' was born...');
 
-        return $this->redirectBackToIndex($request);
+        return $this->redirectBackToIndex($request, $newResource);
     }
 
     /**
@@ -807,7 +807,7 @@ trait FrontCrudController
         $entityName = $this->getResourceDefinition()->getEntityName();
         Session::flash('message', 'Saved.');
 
-        return $this->redirectBackToIndex($request);
+        return $this->redirectBackToIndex($request, $resource);
     }
 
     /**
@@ -937,14 +937,29 @@ trait FrontCrudController
      * Called after create or destroy;
      * redirect back to the index page.
      * @param Request $request
+     * @param RESTResource $resource
      * @return \Illuminate\Http\Response
      */
-    protected function redirectBackToIndex(Request $request)
+    protected function redirectBackToIndex(Request $request, RESTResource $resource = null)
     {
         // look for a return parameter
         $return = $request->session()->get('frontcrud_index_redirect');
         if ($return) {
             $request->session()->forget('frontcrud_index_redirect', null);
+
+            // replace any resource identifiers that might be generated
+            if ($resource) {
+                $identifiers = $resource->getProperties()->getIdentifiers()->getValues();
+                foreach ($identifiers as $identifier) {
+                    // Replace {id} with the actual id of the (new/updated) resource..
+                    $return = str_replace(
+                        '{' . $identifier->getField()->getDisplayName() . '}',
+                        $identifier->getValue(),
+                        $return
+                    );
+                }
+            }
+
             return Redirect::to($return);
         }
 
