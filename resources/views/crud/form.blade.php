@@ -64,35 +64,51 @@
 
         @endforeach
 
+        <?php $linkableFields = []; ?>
         @foreach($linkables as $linkable)
-
             <?php
-            $field = $linkable['field'];
+                $field = $linkable['field'];
+                $linkableFields[] = $field->getDisplayName();
 
-            $values = [];
+                $extraProperties = [];
+                $values = [];
 
-            if (!$field->isRequired()) {
-                $values[null] = '';
-            }
+                if ($linkable['field']->getCardinality() === \CatLab\Charon\Enums\Cardinality::MANY) {
+                    $extraProperties['multiple'] = 'multiple';
+                    $name = 'linkable[' . $field->getDisplayName() . '][][id]';
+                } else {
+                    $name = 'linkable[' . $field->getDisplayName() . '][id]';
+                    $values[null] = '';
+                }
 
-            foreach ($linkable['values'] as $k => $v) {
-                $values[$k] = $v;
-            }
+                // add possible values
+                foreach ($linkable['values'] as $k => $v) {
+                    $values[$k] = $v;
+                }
 
-            if ($oldValue = Form::old($field->getDisplayName())) {}
-            elseif(isset($resource) && $resource->getProperties()->getProperty($field)) {
-                $value = $resource->getProperties()->getProperty($field)->getValue();
-                $oldValue = $value['id'];
-            }
+                if ($oldValue = Form::old($field->getDisplayName())) {}
+                elseif(isset($resource) && $resource->getProperties()->getProperty($field)) {
+                    $value = $resource->getProperties()->getProperty($field)->getValue();
+                    $oldValue = [];
+
+                    if ($linkable['field']->getCardinality() === \CatLab\Charon\Enums\Cardinality::MANY) {
+                        foreach ($value as $v) {
+                            $oldValue[] = $v['id'];
+                        }
+                    } else {
+                        $oldValue = $value['id'];
+                    }
+                }
             ?>
 
             <div class="form-group row">
                 {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
-                {{ Form::select('linkable[' . $field->getDisplayName() . '][id]', $values, $oldValue, $properties) }}
+                {{ Form::select($name, $values, $oldValue, array_merge($properties, $extraProperties)) }}
             </div>
 
         @endforeach
 
+        {{ Form::hidden('linkableFields', implode($linkableFields, ',')) }}
 
     </div>
 

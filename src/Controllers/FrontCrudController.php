@@ -3,6 +3,7 @@
 namespace CatLab\CharonFrontend\Controllers;
 
 use Carbon\Carbon;
+use CatLab\Base\Helpers\ArrayHelper;
 use CatLab\Charon\Collections\ResourceCollection;
 use CatLab\Charon\Enums\Action;
 use CatLab\Charon\Enums\Cardinality;
@@ -28,6 +29,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use Redirect;
 use Session;
 
@@ -717,7 +719,6 @@ trait FrontCrudController
                 function(Field $field) {
                     if ($field instanceof RelationshipField) {
                         if (
-                            $field->getCardinality() === Cardinality::ONE &&
                             $field->canLinkExistingEntities()
                         ) {
                             return true;
@@ -869,12 +870,42 @@ trait FrontCrudController
 
         // Relationships
         $linkables = $request->input('linkable');
-        if (isset($linkables)) {
-            foreach ($linkables as $k => $v) {
-                if ($this->isLinkableValid($v)) {
-                    $out[$k] = $v;
+        $linkableFields = $request->input('linkableFields');
+
+        if (isset($linkableFields)) {
+            $linkableFields = explode(',', $linkableFields);
+
+            foreach ($linkableFields as $k) {
+
+                if (isset($linkables[$k])) {
+                    $v = $linkables[$k];
                 } else {
-                    $out[$k] = null;
+                    // if not provided, it must be a multiselect
+                    $v = null;
+                    $out[$k] = [
+                        'items' => []
+                    ];
+                }
+
+                if ($v) {
+                    if (!ArrayHelper::isAssociative($v)) {
+                        $out[$k] = [
+                            'items' => []
+                        ];
+
+                        foreach ($v as $vv) {
+                            if ($this->isLinkableValid($vv)) {
+                                $out[$k]['items'][] = $vv;
+                            } else {
+                                $out[$k] = null;
+                                break;
+                            }
+                        }
+                    } elseif ($this->isLinkableValid($v)) {
+                        $out[$k] = $v;
+                    } else {
+                        $out[$k] = null;
+                    }
                 }
             }
         }
