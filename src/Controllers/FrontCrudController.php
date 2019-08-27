@@ -344,7 +344,7 @@ trait FrontCrudController
                     ->setRouteParameters($this->getShowRouteParameters($request))
                     ->setQueryParameters($this->getShowQueryParameters($request))
                     ->setCondition(function($model) use ($request) {
-                        return $this->isMethodAllowed($request, Action::VIEW, $model);
+                        return $this->canViewModel($request, $model);
                     })
             );
         }
@@ -358,7 +358,7 @@ trait FrontCrudController
                     ->setRouteParameters($this->getEditRouteParameters($request))
                     ->setQueryParameters($this->getEditQueryParameters($request))
                     ->setCondition(function($model) use ($request) {
-                        return $this->isMethodAllowed($request, Action::EDIT, $model);
+                        return $this->canEditModel($request, $model);
                     })
             );
         }
@@ -372,7 +372,7 @@ trait FrontCrudController
                     ->setRouteParameters($this->getDestroyRouteParameters($request))
                     ->setQueryParameters($this->getDestroyQueryParameters($request))
                     ->setCondition(function($model) use ($request) {
-                        return $this->isMethodAllowed($request, Action::DESTROY, $model);
+                        return $this->canDestroyModel($request, $model);
                     })
             );
         }
@@ -380,7 +380,7 @@ trait FrontCrudController
         // Now set collection actions too
         if (
             $this->hasMethod(Action::CREATE) &&
-            $this->isMethodAllowed($request, Action::CREATE, $resourceDefinition->getEntityClassName())
+            $this->canCreateModel($request, $resourceDefinition)
         ) {
             $table->collectionAction(
                 (new CollectionAction(
@@ -1001,6 +1001,46 @@ trait FrontCrudController
 
     /**
      * @param Request $request
+     * @param $model
+     * @return bool
+     */
+    protected function canViewModel(Request $request, $model)
+    {
+        return $this->isMethodAllowed($request, Action::VIEW, $model);
+    }
+
+    /**
+     * @param Request $request
+     * @param $model
+     * @return bool
+     */
+    protected function canEditModel(Request $request, $model)
+    {
+        return $this->isMethodAllowed($request, Action::EDIT, $model);
+    }
+
+    /**
+     * @param Request $request
+     * @param $model
+     * @return bool
+     */
+    protected function canDestroyModel(Request $request, $model)
+    {
+        return $this->isMethodAllowed($request, Action::DESTROY, $model);
+    }
+
+    /**
+     * @param Request $request
+     * @param ResourceDefinition $resourceDefinition
+     * @return bool
+     */
+    protected function canCreateModel(Request $request, ResourceDefinition $resourceDefinition)
+    {
+        return $this->isMethodAllowed($request, Action::CREATE, $resourceDefinition->getEntityClassName());
+    }
+
+    /**
+     * @param Request $request
      * @param $action
      * @param $model
      * @return bool
@@ -1054,6 +1094,7 @@ trait FrontCrudController
     /**
      * @param $action
      * @param ResourceDefinition $resourceDefinition
+     * @return string
      */
     protected function traitGetActionText($action, ResourceDefinition $resourceDefinition)
     {
