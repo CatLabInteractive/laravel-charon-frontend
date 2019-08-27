@@ -31,6 +31,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Redirect;
+use Route;
 use Session;
 
 /**
@@ -57,8 +58,14 @@ trait FrontCrudController
      */
     public static function traitRoutes($path, $controller, $modelId = 'id')
     {
-        \Route::resource($path, $controller);
-        \Route::get($path . '/{' . $modelId . '}/delete', $controller . '@confirmDelete');
+        Route::get($path, $controller . '@index');
+        Route::post($path, $controller . '@store');
+        Route::get($path . '/{' . $modelId . '}/create', $controller . '@create');
+        Route::delete($path . '/{' . $modelId . '}', $controller . '@destroy');
+        Route::get($path . '/{' . $modelId . '}', $controller . '@show');
+        Route::put($path . '/{' . $modelId . '}', $controller . '@update');
+        Route::get($path . '/{' . $modelId . '}/edit', $controller . '@edit');
+        Route::get($path . '/{' . $modelId . '}/delete', $controller . '@confirmDelete');
     }
 
     /**
