@@ -60,7 +60,7 @@ trait FrontCrudController
     {
         Route::get($path, $controller . '@index');
         Route::post($path, $controller . '@store');
-        Route::get($path . '/{' . $modelId . '}/create', $controller . '@create');
+        Route::get($path . '/create', $controller . '@create');
         Route::delete($path . '/{' . $modelId . '}', $controller . '@destroy');
         Route::get($path . '/{' . $modelId . '}', $controller . '@show');
         Route::put($path . '/{' . $modelId . '}', $controller . '@update');
