@@ -14,7 +14,7 @@ use CatLab\Charon\Models\Context;
 use CatLab\Charon\Models\Properties\Base\Field;
 use CatLab\Charon\Models\Properties\IdentifierField;
 use CatLab\Charon\Models\Properties\RelationshipField;
-use CatLab\Charon\Models\ResourceResponse;
+use CatLab\Charon\Laravel\Models\ResourceResponse;
 use CatLab\Charon\Models\RESTResource;
 use CatLab\Charon\Models\Values\Base\RelationshipValue;
 use CatLab\Charon\Models\Values\ChildrenValue;

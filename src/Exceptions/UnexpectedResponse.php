@@ -3,7 +3,7 @@
 namespace CatLab\CharonFrontend\Exceptions;
 
 use CatLab\Charon\Collections\ResourceCollection;
-use CatLab\Charon\Models\ResourceResponse;
+use CatLab\Charon\Laravel\Models\ResourceResponse;
 use CatLab\Laravel\Exceptions\Exception;
 
 /**
