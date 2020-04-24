@@ -759,7 +759,7 @@ trait FrontCrudController
             ];
         }
 
-        return view($view, [
+        return $this->createFormView($action, $view, [
             'fields' => $fields,
             'linkables' => $linkables,
             'action' => $this->action($processmethod),
@@ -767,6 +767,25 @@ trait FrontCrudController
             'verb' => $verb,
             'layout' => $this->layout
         ]);
+    }
+
+    /**
+     * @param string $action
+     * @param string $view
+     * @param array $properties
+     * @return \Illuminate\View\View
+     */
+    protected function createFormView($action, $view, $properties)
+    {
+        return view($view, $properties);
+    }
+
+    /**
+     * @return array
+     */
+    protected function getAdditionalFormViewProperties()
+    {
+        return [];
     }
 
     /**
