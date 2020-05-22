@@ -108,7 +108,7 @@
 
         @endforeach
 
-        {{ Form::hidden('linkableFields', implode($linkableFields, ',')) }}
+        {{ Form::hidden('linkableFields', implode(',', $linkableFields)) }}
 
     </div>
 
