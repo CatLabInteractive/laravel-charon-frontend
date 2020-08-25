@@ -10,8 +10,7 @@
         }
     ],
     "require": {
-        "catlabinteractive/charon-laravel": "^1.0.10",
-        "catlabinteractive/cursor-pagination": "^1.0"
+        "catlabinteractive/charon-laravel": "^1.0.10"
     },
     "autoload": {
         "psr-4": {
