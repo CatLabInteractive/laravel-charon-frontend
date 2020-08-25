@@ -22,6 +22,7 @@ use CatLab\CharonFrontend\Contracts\FrontCrudControllerContract;
 use CatLab\CharonFrontend\Exceptions\UnexpectedResponse;
 use CatLab\CharonFrontend\Exceptions\UnresolvedMethodException;
 
+use CatLab\CharonFrontend\Models\Pagination;
 use CatLab\CharonFrontend\Models\Table\ResourceAction;
 use CatLab\Laravel\Table\Models\CollectionAction;
 use CatLab\Laravel\Table\Table;
@@ -339,7 +340,8 @@ trait FrontCrudController
         $table = new Table(
             $collection,
             $resourceDefinition,
-            $context
+            $context,
+            $request->getRequestUri()
         );
 
         if ($this->hasMethod(Action::VIEW)) {
