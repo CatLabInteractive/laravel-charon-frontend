@@ -1022,9 +1022,28 @@ trait FrontCrudController
             return Redirect::to($return);
         }
 
-        // redirect to the actual index
-        $parameters = $this->getIndexRouteParameters($request);
-        return Redirect::to(action('\\' . self::class . '@index', $parameters));
+        // redirect to default index (if allowed)
+        if ($this->canViewIndex($request)) {
+            $parameters = $this->getIndexRouteParameters($request);
+            return Redirect::to(action('\\' . self::class . '@index', $parameters));
+        } elseif ($resource && $this->isMethodAllowed($request, Action::VIEW, $resource)) {
+            $parameters = [ 'id' => $resource->getIdentifiers()->getValues()[0]->getValue() ];
+            return Redirect::to(action('\\' . self::class . '@show', $parameters));
+        } elseif ($resource && $this->isMethodAllowed($request, Action::EDIT, $resource)) {
+            $parameters = [ 'id' => $resource->getIdentifiers()->getValues()[0]->getValue() ];
+            return Redirect::to(action('\\' . self::class . '@edit', $parameters));
+        } else {
+            return Redirect::to('/');
+        }
+    }
+
+    /**
+     * @param Request $request
+     * @return bool
+     */
+    protected function canViewIndex(Request $request)
+    {
+        return $this->isMethodAllowed($request, Action::INDEX);
     }
 
     /**
