@@ -250,8 +250,8 @@ trait FrontCrudController
         // set the return parameter
         $request->session()->put('frontcrud_index_redirect', $request->input($this->getReturnParameter()));
 
-        $resource = $this->dispatchToApi(Action::VIEW, $request);
-        return $this->formView(Action::EDIT, 'update', $resource->getResource());
+        $response = $this->dispatchToApi(Action::VIEW, $request);
+        return $this->formView(Action::EDIT, 'update', $response);
     }
 
     /**
@@ -703,15 +703,24 @@ trait FrontCrudController
     /**
      * @param $action
      * @param $processmethod
-     * @param null $model
+     * @param ResourceResponse|Response $model
      * @return \Illuminate\Http\Response
      */
-    protected function formView($action, $processmethod, $model = null)
+    protected function formView($action, $processmethod, $response = null)
     {
         $context = new Context($action, []);
 
-        /** @var ResourceDefinition $resourceDefinition */
-        $resourceDefinition = $this->getResourceDefinition();
+        $model = null;
+        if ($response || $response instanceof ResourceResponse) {
+            $model = $response->getResource();
+
+            /** @var ResourceDefinition $resourceDefinition */
+            $resourceDefinition = $response->getResource()->getResourceDefinition();
+        } else {
+            /** @var ResourceDefinition $resourceDefinition */
+            $resourceDefinition = $this->getResourceDefinition();
+        }
+
         $fields = $resourceDefinition
             ->getFields()
             ->filter(
