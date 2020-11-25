@@ -66,6 +66,13 @@
 
         <?php $linkableFields = []; ?>
         @foreach($linkables as $linkable)
+
+            <?php
+            $properties = [
+                'class' => 'form-control'
+            ];
+            ?>
+
             <?php
             $field = $linkable['field'];
             $linkableFields[] = $field->getDisplayName();
