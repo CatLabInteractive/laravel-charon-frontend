@@ -900,7 +900,21 @@ trait FrontCrudController
         if (isset($fields)) {
             foreach ($fields as $k => $v) {
                 if (is_array($v)) {
-                    $out[$k] = $this->transformInputField($v);
+                    if (!isset($v['input']) || !is_array($v['input'])) {
+                        continue;
+                    }
+
+                    if ($v['multiple']) {
+                        $out[$k] = [];
+                        foreach ($v['input'] as $input) {
+                            $fieldValue = $this->transformInputField($v['type'], $input);
+                            if ($fieldValue !== null) {
+                                $out[$k][] = $fieldValue;
+                            }
+                        }
+                    } elseif (isset($v['input'][0])) {
+                        $out[$k] = $this->transformInputField($v['type'], $v['input'][0]);
+                    }
                 }
             }
         }
@@ -976,9 +990,9 @@ trait FrontCrudController
      * @param array $v
      * @return mixed|null|string
      */
-    protected function transformInputField(array $v)
+    protected function transformInputField($type, array $v)
     {
-        switch ($v['type']) {
+        switch ($type) {
             case 'dateTime':
 
                 if (isset($v['date']) && isset($v['time'])) {

@@ -12,56 +12,53 @@
     {{ method_field($verb) }}
 
     <div class="form-group">
-
         @foreach($fields as $field)
+            <?php $index = 0; ?>
+            @if($field->isArray())
+                <?php
+                    $oldValues = [];
+                    $property = isset($resource) ? $resource->getProperties()->getProperty($field) : null;
+                    if ($property) {
+                        foreach ($property->getValue() as $v) {
+                            $oldValues[] = $v;
+                        }
+                    }
+                ?>
 
-            <?php
-            $oldValue = (Form::old($field->getDisplayName())) ??
-                (isset($resource) && $resource->getProperties()->getProperty($field)
-                    ? $resource->getProperties()->getProperty($field)->getValue() : '');
+                @foreach($oldValues as $oldValue)
+                    @include('charonfrontend::crud.field', [
+                        'field' => $field,
+                        'resource' => $resource,
+                        'oldValue' => $oldValue,
+                        'label' => $index === 0,
+                        'index' => $index
+                    ])
 
-            $properties = [
-                'class' => 'form-control'
-            ];
-            ?>
+                    <?php $index ++; ?>
+                @endforeach
 
-            {{ Form::hidden('fields[' . $field->getDisplayName() . '][type]', $field->getType()) }}
-
-            @if($field->getType() === 'dateTime')
-                <?php $dateTime = $oldValue ? \Carbon\Carbon::parse($oldValue) : null; ?>
-
-                <div class="form-group row">
-                    {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
-                    {{ Form::date('fields[' . $field->getDisplayName() . '][date]', $dateTime ? $dateTime->format('Y-m-d') : null, $properties) }}
-                    {{ Form::time('fields[' . $field->getDisplayName() . '][time]', $dateTime ? $dateTime->format('H:i') : null, $properties) }}
-                </div>
-
-            @elseif($field->getType() === 'boolean')
-
-                <div class="form-check">
-
-                    {{ Form::checkbox('fields[' . $field->getDisplayName() . '][value]', 1, !!$oldValue) }}
-                    {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
-
-                </div>
-
+                @include('charonfrontend::crud.field', [
+                    'field' => $field,
+                    'resource' => $resource,
+                    'oldValue' => null,
+                    'label' => $index === 0,
+                    'index' => $index
+                ])
             @else
                 <?php
-                $allowedValues = [];
-                foreach ($field->getAllowedValues() as $v) {
-                    $allowedValues[$v] = $v;
-                }
+                    $oldValue = (Form::old($field->getDisplayName())) ??
+                        (isset($resource) && $resource->getProperties()->getProperty($field)
+                            ? $resource->getProperties()->getProperty($field)->getValue() : '');
                 ?>
-                <div class="form-group row">
-                    {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
-                    @if(count($allowedValues) > 0)
-                        {{ Form::select('fields[' . $field->getDisplayName() . '][value]', $allowedValues, $oldValue, $properties) }}
-                    @else
-                        {{ Form::textarea('fields[' . $field->getDisplayName() . '][value]', $oldValue, [ 'rows' => 1 ] + $properties) }}
-                    @endif
-                </div>
-            @endif
 
+                @include('charonfrontend::crud.field', [
+                    'field' => $field,
+                    'resource' => $resource,
+                    'oldValue' => $oldValue,
+                    'label' => $index === 0,
+                    'index' => $index
+                ])
+            @endif
         @endforeach
 
         <?php $linkableFields = []; ?>
