@@ -901,19 +901,27 @@ trait FrontCrudController
             foreach ($fields as $k => $v) {
                 if (is_array($v)) {
                     if (!isset($v['input']) || !is_array($v['input'])) {
-                        continue;
+                        if ($v['multiple']) {
+                            $out[$k] = [];
+                        } else {
+                            $out[$k] = $this->transformInputField($v['type'], [ 'value' => null ]);
+                        }
                     }
 
                     if ($v['multiple']) {
                         $out[$k] = [];
-                        foreach ($v['input'] as $input) {
-                            $fieldValue = $this->transformInputField($v['type'], $input);
-                            if ($fieldValue !== null) {
-                                $out[$k][] = $fieldValue;
+                        if (isset($v['input']) && is_array($v['input'])) {
+                            foreach ($v['input'] as $input) {
+                                $fieldValue = $this->transformInputField($v['type'], $input);
+                                if ($fieldValue !== null) {
+                                    $out[$k][] = $fieldValue;
+                                }
                             }
                         }
-                    } elseif (isset($v['input'][0])) {
+                    } elseif (isset($v['input']) && is_array($v['input']) && key_exists(0, $v['input'])) {
                         $out[$k] = $this->transformInputField($v['type'], $v['input'][0]);
+                    } else {
+                        $out[$k] = $this->transformInputField($v['type'], [ 'value' => null ]);
                     }
                 }
             }
@@ -967,6 +975,7 @@ trait FrontCrudController
         //$request->request = $out;
         return $newRequest;
     }
+
 
     /**
      * @param $identifiers
