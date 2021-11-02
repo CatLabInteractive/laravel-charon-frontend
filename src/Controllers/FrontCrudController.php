@@ -734,10 +734,10 @@ trait FrontCrudController
         $relationships = $resourceDefinition
             ->getFields()
             ->filter(
-                function(Field $field) {
+                function(Field $field) use ($context) {
                     if ($field instanceof RelationshipField) {
                         if (
-                            $field->canLinkExistingEntities()
+                            $field->canLinkExistingEntities($context)
                         ) {
                             return true;
                         }
