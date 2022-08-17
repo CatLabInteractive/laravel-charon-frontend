@@ -77,6 +77,14 @@ trait FrontCrudController
     }
 
     /**
+     * @return string
+     */
+    public static function getApiRouteIdParameterName(): string
+    {
+        return 'id';
+    }
+
+    /**
      * This method should return an instance of the corresponding api controller.
      * @return ResourceController
      */
@@ -717,20 +725,6 @@ trait FrontCrudController
     }
 
     /**
-     * @return string
-     * @throws \CatLab\Charon\Exceptions\ResourceException
-     */
-    protected function getApiRouteIdParameterName($method)
-    {
-        $route = $this->getApiRoute($method);
-        if (count($route->parameterNames()) > 0) {
-            return $route->parameterNames()[0];
-        }
-
-        return null;
-    }
-
-    /**
      * @param Request $request
      * @param $method
      * @return void
@@ -738,7 +732,7 @@ trait FrontCrudController
      */
     protected function translateIdParameter(Request $request, $method)
     {
-        $apiIdName = $this->getApiRouteIdParameterName($method);
+        $apiIdName = static::getApiRouteIdParameterName();
         if (!$apiIdName) {
             return;
         }
