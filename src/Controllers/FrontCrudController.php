@@ -71,18 +71,12 @@ trait FrontCrudController
     /**
      * @return string
      */
-    public static function getRouteIdParameterName(): string
-    {
-        return 'id';
-    }
+    public abstract static function getRouteIdParameterName(): string;
 
     /**
      * @return string
      */
-    public static function getApiRouteIdParameterName(): string
-    {
-        return 'id';
-    }
+    public abstract static function getApiRouteIdParameterName(): string;
 
     /**
      * This method should return an instance of the corresponding api controller.
