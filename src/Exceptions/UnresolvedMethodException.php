@@ -2,13 +2,13 @@
 
 namespace CatLab\CharonFrontend\Exceptions;
 
-use CatLab\Laravel\Exceptions\Exception;
+use CatLab\Charon\Laravel\Exceptions\CharonHttpException;
 
 /**
  * Class UnresolvedMethodException
  * @package CatLab\CharonFrontend\Exceptions
  */
-class UnresolvedMethodException extends Exception
+class UnresolvedMethodException extends CharonHttpException
 {
     /**
      * @param $resourceController

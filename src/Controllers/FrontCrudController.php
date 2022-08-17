@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use CatLab\Base\Helpers\ArrayHelper;
 use CatLab\Charon\Collections\ResourceCollection;
 use CatLab\Charon\Enums\Action;
-use CatLab\Charon\Enums\Cardinality;
 use CatLab\Charon\Interfaces\Context as ContextContract;
 use CatLab\Charon\Interfaces\ResourceDefinition;
 use CatLab\Charon\Laravel\Controllers\ResourceController;
@@ -16,13 +15,11 @@ use CatLab\Charon\Models\Properties\IdentifierField;
 use CatLab\Charon\Models\Properties\RelationshipField;
 use CatLab\Charon\Laravel\Models\ResourceResponse;
 use CatLab\Charon\Models\RESTResource;
-use CatLab\Charon\Models\Values\Base\RelationshipValue;
 use CatLab\Charon\Models\Values\ChildrenValue;
 use CatLab\CharonFrontend\Contracts\FrontCrudControllerContract;
 use CatLab\CharonFrontend\Exceptions\UnexpectedResponse;
 use CatLab\CharonFrontend\Exceptions\UnresolvedMethodException;
 
-use CatLab\CharonFrontend\Models\Pagination;
 use CatLab\CharonFrontend\Models\Table\ResourceAction;
 use CatLab\Laravel\Table\Models\CollectionAction;
 use CatLab\Laravel\Table\Table;
@@ -30,7 +27,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\HtmlString;
-use Illuminate\Support\Str;
+use Illuminate\View\View;
 use Redirect;
 use Route;
 use Session;
@@ -46,9 +43,9 @@ trait FrontCrudController
      * @param $controller
      * @param string $modelId
      */
-    public static function routes($path, $controller, $modelId = 'id')
+    public static function routes($path, $controller)
     {
-        self::traitRoutes($path, $controller, $modelId);
+        static::traitRoutes($path, $controller);
     }
 
     /**
@@ -57,8 +54,10 @@ trait FrontCrudController
      * @param $controller
      * @param string $modelId
      */
-    public static function traitRoutes($path, $controller, $modelId = 'id')
+    public static function traitRoutes($path, $controller)
     {
+        $modelId = static::getRouteIdParameterName();
+
         Route::get($path, $controller . '@index');
         Route::post($path, $controller . '@store');
         Route::get($path . '/create', $controller . '@create');
@@ -67,6 +66,14 @@ trait FrontCrudController
         Route::put($path . '/{' . $modelId . '}', $controller . '@update');
         Route::get($path . '/{' . $modelId . '}/edit', $controller . '@edit');
         Route::get($path . '/{' . $modelId . '}/delete', $controller . '@confirmDelete');
+    }
+
+    /**
+     * @return string
+     */
+    public static function getRouteIdParameterName(): string
+    {
+        return 'id';
     }
 
     /**
@@ -117,7 +124,7 @@ trait FrontCrudController
     /**
      * Display a listing of the resource.
      * @param Request $request
-     * @return Response
+     * @return Response|View
      * @throws UnexpectedResponse
      */
     public function index(Request $request)
@@ -155,6 +162,7 @@ trait FrontCrudController
      *
      * @param Request $request
      * @return Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
      */
     public function create(Request $request)
     {
@@ -168,7 +176,9 @@ trait FrontCrudController
      * Store a newly created resource in storage.
      *
      * @param Request $request
-     * @return Response
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     public function store(Request $request)
     {
@@ -184,7 +194,8 @@ trait FrontCrudController
 
     /**
      * @param Request $request
-     * @return Response
+     * @return \Symfony\Component\HttpFoundation\Response|View
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
      */
     public function show(Request $request)
     {
@@ -244,6 +255,7 @@ trait FrontCrudController
      * Show the edit form
      * @param Request $request
      * @return Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
      */
     public function edit(Request $request)
     {
@@ -258,7 +270,9 @@ trait FrontCrudController
      * Update an entity and redirect back to index page
      * @param Request $request
      * @param $id
-     * @return Response
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     public function update(Request $request, $id)
     {
@@ -299,6 +313,8 @@ trait FrontCrudController
      *
      * @param Request $request
      * @return Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     public function destroy(Request $request)
     {
@@ -348,7 +364,8 @@ trait FrontCrudController
             $table->modelAction(
                 (new ResourceAction(
                     $this->getControllerAction(Action::VIEW),
-                    $this->getActionText(Action::VIEW, $resourceDefinition)
+                    $this->getActionText(Action::VIEW, $resourceDefinition),
+                    static::getRouteIdParameterName()
                 ))
                     ->setRouteParameters($this->getShowRouteParameters($request))
                     ->setQueryParameters($this->getShowQueryParameters($request))
@@ -362,7 +379,8 @@ trait FrontCrudController
             $table->modelAction(
                 (new ResourceAction(
                     $this->getControllerAction(Action::EDIT),
-                    $this->getActionText(Action::EDIT, $resourceDefinition)
+                    $this->getActionText(Action::EDIT, $resourceDefinition),
+                    static::getRouteIdParameterName()
                 ))
                     ->setRouteParameters($this->getEditRouteParameters($request))
                     ->setQueryParameters($this->getEditQueryParameters($request))
@@ -376,7 +394,8 @@ trait FrontCrudController
             $table->modelAction(
                 (new ResourceAction(
                     $this->getControllerAction(Action::DESTROY),
-                    $this->getActionText(Action::DESTROY, $resourceDefinition)
+                    $this->getActionText(Action::DESTROY, $resourceDefinition),
+                    static::getRouteIdParameterName()
                 ))
                     ->setRouteParameters($this->getDestroyRouteParameters($request))
                     ->setQueryParameters($this->getDestroyQueryParameters($request))
@@ -534,6 +553,7 @@ trait FrontCrudController
     /**
      * Create and return the corresponding Api Controller
      * @return ResourceController
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function getApiController()
     {
@@ -579,6 +599,7 @@ trait FrontCrudController
      * @param Request $request
      * @param array $parameters
      * @return ResourceResponse|Response
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function dispatchToApi($action, Request $request, $parameters = [])
     {
@@ -588,6 +609,9 @@ trait FrontCrudController
                 $request->route()->setParameter($k, $v);
             }
         }
+
+        // Also translate the id parameter
+        $this->translateIdParameter($request, $action);
 
         $method = $this->resolveMethod($action);
         return $this->callApiMethod($method, $request, $parameters);
@@ -599,6 +623,7 @@ trait FrontCrudController
      * @param Request $request
      * @param array $parameters
      * @return mixed
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function callApiMethod($method, Request $request, $parameters = [])
     {
@@ -610,6 +635,8 @@ trait FrontCrudController
 
     /**
      * @return mixed
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function getResourceDefinition()
     {
@@ -690,6 +717,53 @@ trait FrontCrudController
     }
 
     /**
+     * @return string
+     * @throws \CatLab\Charon\Exceptions\ResourceException
+     */
+    protected function getApiRouteIdParameterName($method)
+    {
+        $route = $this->getApiRoute($method);
+        if (count($route->parameterNames()) > 0) {
+            return $route->parameterNames()[0];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param Request $request
+     * @param $method
+     * @return void
+     * @throws \CatLab\Charon\Exceptions\ResourceException
+     */
+    protected function translateIdParameter(Request $request, $method)
+    {
+        $apiIdName = $this->getApiRouteIdParameterName($method);
+        if (!$apiIdName) {
+            return;
+        }
+
+        $id = $request->route(static::getRouteIdParameterName());
+
+        if ($id) {
+            $request->route()->setParameter($apiIdName, $id);
+        }
+    }
+
+    /**
+     * @param $method
+     * @return \Illuminate\Routing\Route|null
+     * @throws \CatLab\Charon\Exceptions\ResourceException
+     */
+    protected function getApiRoute($method)
+    {
+        $controllerAction = $this->resolveMethod($method);
+        $controller = get_class($this->getApiController());
+
+        return Route::getRoutes()->getByAction($controller . '@' . $controllerAction);
+    }
+
+    /**
      * Get any parameters that might be required by the controller.
      * @param Request $request
      * @param $method
@@ -704,7 +778,8 @@ trait FrontCrudController
      * @param $action
      * @param $processmethod
      * @param ResourceResponse|Response $model
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\Response|View
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
      */
     protected function formView($action, $processmethod, $response = null)
     {
@@ -802,6 +877,7 @@ trait FrontCrudController
     /**
      * @param RelationshipField $field
      * @return string[]
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
      */
     protected function resolveValues(RelationshipField $field)
     {
@@ -823,7 +899,9 @@ trait FrontCrudController
      * Executed after store.
      * @param Request $request
      * @param RESTResource $newResource
-     * @return Response
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function afterStore(Request $request, RESTResource $newResource)
     {
@@ -838,7 +916,9 @@ trait FrontCrudController
      * Executed after store.
      * @param Request $request
      * @param RESTResource $resource
-     * @return Response
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function afterUpdate(Request $request, RESTResource $resource)
     {
@@ -852,7 +932,9 @@ trait FrontCrudController
      * Executed after destroy.
      * @param Request $request
      * @param RESTResource $resource
-     * @return Response
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function afterDestroy(Request $request, RESTResource $resource)
     {
@@ -865,7 +947,7 @@ trait FrontCrudController
     /**
      * @param JsonResponse $response
      * @param $redirectMethod
-     * @return $this
+     * @return \Symfony\Component\HttpFoundation\Response
      */
     protected function handleErrorResponse(JsonResponse $response, $redirectMethod)
     {
@@ -900,14 +982,6 @@ trait FrontCrudController
         if (isset($fields)) {
             foreach ($fields as $k => $v) {
                 if (is_array($v)) {
-                    if (!isset($v['input']) || !is_array($v['input'])) {
-                        if ($v['multiple']) {
-                            $out[$k] = [];
-                        } else {
-                            $out[$k] = $this->transformInputField($v['type'], [ 'value' => null ]);
-                        }
-                    }
-
                     if ($v['multiple']) {
                         $out[$k] = [];
                         if (isset($v['input']) && is_array($v['input'])) {
@@ -996,6 +1070,7 @@ trait FrontCrudController
     }
 
     /**
+     * @param $type
      * @param array $v
      * @return mixed|null|string
      */
@@ -1028,8 +1103,10 @@ trait FrontCrudController
      * Called after create or destroy;
      * redirect back to the index page.
      * @param Request $request
-     * @param RESTResource $resource
-     * @return \Illuminate\Http\Response
+     * @param RESTResource|null $resource
+     * @return \Symfony\Component\HttpFoundation\Response
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function redirectBackToIndex(Request $request, RESTResource $resource = null)
     {
@@ -1059,10 +1136,10 @@ trait FrontCrudController
             $parameters = $this->getIndexRouteParameters($request);
             return Redirect::to(action('\\' . self::class . '@index', $parameters));
         } elseif ($resource && $this->isMethodAllowed($request, Action::VIEW, $resource)) {
-            $parameters = [ 'id' => $resource->getIdentifiers()->getValues()[0]->getValue() ];
+            $parameters = [ static::getRouteIdParameterName() => $resource->getIdentifiers()->getValues()[0]->getValue() ];
             return Redirect::to(action('\\' . self::class . '@show', $parameters));
         } elseif ($resource && $this->isMethodAllowed($request, Action::EDIT, $resource)) {
-            $parameters = [ 'id' => $resource->getIdentifiers()->getValues()[0]->getValue() ];
+            $parameters = [ static::getRouteIdParameterName() => $resource->getIdentifiers()->getValues()[0]->getValue() ];
             return Redirect::to(action('\\' . self::class . '@edit', $parameters));
         } else {
             return Redirect::to('/');
@@ -1072,6 +1149,8 @@ trait FrontCrudController
     /**
      * @param Request $request
      * @return bool
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function canViewIndex(Request $request)
     {
@@ -1082,6 +1161,8 @@ trait FrontCrudController
      * @param Request $request
      * @param $model
      * @return bool
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function canViewModel(Request $request, $model)
     {
@@ -1092,6 +1173,8 @@ trait FrontCrudController
      * @param Request $request
      * @param $model
      * @return bool
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function canEditModel(Request $request, $model)
     {
@@ -1102,6 +1185,8 @@ trait FrontCrudController
      * @param Request $request
      * @param $model
      * @return bool
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function canDestroyModel(Request $request, $model)
     {
@@ -1112,6 +1197,8 @@ trait FrontCrudController
      * @param Request $request
      * @param ResourceDefinition $resourceDefinition
      * @return bool
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function canCreateModel(Request $request, ResourceDefinition $resourceDefinition)
     {
@@ -1121,8 +1208,10 @@ trait FrontCrudController
     /**
      * @param Request $request
      * @param $action
-     * @param $model
+     * @param null $model
      * @return bool
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     protected function isMethodAllowed(Request $request, $action, $model = null)
     {

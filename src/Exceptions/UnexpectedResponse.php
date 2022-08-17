@@ -3,14 +3,14 @@
 namespace CatLab\CharonFrontend\Exceptions;
 
 use CatLab\Charon\Collections\ResourceCollection;
+use CatLab\Charon\Laravel\Exceptions\CharonHttpException;
 use CatLab\Charon\Laravel\Models\ResourceResponse;
-use CatLab\Laravel\Exceptions\Exception;
 
 /**
  * Class UnexpectedResponse
  * @package CatLab\CharonFrontend\Exceptions
  */
-class UnexpectedResponse extends Exception
+class UnexpectedResponse extends CharonHttpException
 {
     /**
      * @param $actual
