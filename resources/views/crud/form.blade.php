@@ -9,11 +9,11 @@
     @endif
 
     {{ Form::open(array('url' => $action)) }}
-    {{ method_field($verb) }}
+    {{ method_field($method) }}
 
     @include('charonfrontend::crud.form-fields')
 
-    <div class="form-group row">
+    <div class="form-group">
         {{ Form::submit(ucfirst($verb), array('class' => 'btn btn-primary')) }}
     </div>
 

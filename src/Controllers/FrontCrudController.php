@@ -815,12 +815,14 @@ trait FrontCrudController
         switch ($processmethod) {
 
             case 'update':
-                $verb = 'put';
+                $method = 'put';
+                $verb = 'save';
                 break;
 
             case 'store':
             default:
-                $verb = 'post';
+                $method = 'post';
+                $verb = 'create';
                 break;
         }
 
@@ -839,6 +841,7 @@ trait FrontCrudController
             'action' => $this->action($processmethod),
             'resource' => $model,
             'verb' => $verb,
+            'method' => $method,
             'layout' => $this->layout
         ]);
     }
@@ -1256,16 +1259,16 @@ trait FrontCrudController
     {
         switch ($action) {
             case Action::CREATE:
-                return 'Create ' . $resourceDefinition->getEntityName();
+                return $this->getCreateActionLabel($resourceDefinition);
 
             case Action::EDIT:
-                return 'Edit';
+                return $this->getEditActionLabel($resourceDefinition);
 
             case Action::VIEW:
-                return 'View';
+                return $this->getViewActionLabel($resourceDefinition);
 
             case Action::DESTROY:
-                return 'Delete';
+                return $this->getDestroyActionLabel($resourceDefinition);
         }
 
         return ucfirst(strtolower($action));
@@ -1277,5 +1280,41 @@ trait FrontCrudController
     protected function getReturnParameter()
     {
         return 'return';
+    }
+
+    /**
+     * @param ResourceDefinition $resourceDefinition
+     * @return string
+     */
+    protected function getCreateActionLabel(ResourceDefinition $resourceDefinition)
+    {
+        return 'Create ' . $resourceDefinition->getEntityName();
+    }
+
+    /**
+     * @param ResourceDefinition $resourceDefinition
+     * @return string
+     */
+    protected function getEditActionLabel(ResourceDefinition $resourceDefinition)
+    {
+        return 'Edit';
+    }
+
+    /**
+     * @param ResourceDefinition $resourceDefinition
+     * @return string
+     */
+    protected function getViewActionLabel(ResourceDefinition $resourceDefinition)
+    {
+        return 'View';
+    }
+
+    /**
+     * @param ResourceDefinition $resourceDefinition
+     * @return string
+     */
+    protected function getDestroyActionLabel(ResourceDefinition $resourceDefinition)
+    {
+        return 'Delete';
     }
 }

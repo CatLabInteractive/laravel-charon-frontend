@@ -1,4 +1,4 @@
-<div class="form-group">
+
     @foreach($fields as $field)
         <?php $index = 0; ?>
         @if($field->isArray())
@@ -17,7 +17,7 @@
                     'field' => $field,
                     'resource' => $resource,
                     'oldValue' => $oldValue,
-                    'label' => $index === 0,
+                    'showLabel' => $index === 0,
                     'index' => $index
                 ])
 
@@ -28,7 +28,7 @@
                 'field' => $field,
                 'resource' => $resource,
                 'oldValue' => null,
-                'label' => $index === 0,
+                'showLabel' => $index === 0,
                 'index' => $index
             ])
         @else
@@ -42,7 +42,7 @@
                 'field' => $field,
                 'resource' => $resource,
                 'oldValue' => $oldValue,
-                'label' => $index === 0,
+                'showLabel' => $index === 0,
                 'index' => $index
             ])
         @endif
@@ -92,7 +92,7 @@
         }
         ?>
 
-        <div class="form-group row">
+        <div class="form-group">
             {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
             {{ Form::select($name, $values, $oldValue, array_merge($properties, $extraProperties)) }}
         </div>
@@ -101,4 +101,3 @@
 
     {{ Form::hidden('linkableFields', implode(',', $linkableFields)) }}
 
-</div>

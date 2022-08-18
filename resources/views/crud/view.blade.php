@@ -12,7 +12,7 @@
 
             @if(count($field->getValue()) === 0)
                 <tr>
-                    <th>{{ ucfirst($field->getField()->getDisplayName()) }}</th>
+                    <th>{{ $field->getField()->getLabel() }}</th>
                     <td></td>
                 </tr>
             @else
@@ -20,7 +20,7 @@
                 @foreach($field->getValue() as $k => $v)
                     <tr>
                         @if(($index ++) === 0)
-                            <th rowspan="{{count($field->getValue())}}">{{ ucfirst($field->getField()->getDisplayName()) }}</th>
+                            <th rowspan="{{count($field->getValue())}}">{{ $field->getField()->getLabel() }}</th>
                         @endif
                         <td>{{ $v }}</td>
                     </tr>
