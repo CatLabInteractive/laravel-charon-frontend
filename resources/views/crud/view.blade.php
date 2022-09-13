@@ -43,12 +43,26 @@
 
 
     @endforeach
+
+    @foreach($relationships as $relationship)
+
+        @if(!$relationship['multiple'])
+            <tr>
+                <th>{{ ucfirst($relationship['title']) }}</th>
+                <th>{{ $relationship['table']->render() }}</th>
+            </tr>
+        @endif
+
+    @endforeach
+
     </table>
 
     @foreach($relationships as $relationship)
 
-        <h2>{{ $relationship['title'] }}</h2>
-        {{ $relationship['table']->render() }}
+        @if($relationship['multiple'])
+            <h2>{{ $relationship['title'] }}</h2>
+            {{ $relationship['table']->render() }}
+        @endif
 
     @endforeach
 

@@ -16,6 +16,7 @@ use CatLab\Charon\Models\Properties\RelationshipField;
 use CatLab\Charon\Laravel\Models\ResourceResponse;
 use CatLab\Charon\Models\RESTResource;
 use CatLab\Charon\Models\Values\ChildrenValue;
+use CatLab\Charon\Models\Values\ChildValue;
 use CatLab\CharonFrontend\Contracts\FrontCrudControllerContract;
 use CatLab\CharonFrontend\Exceptions\UnexpectedResponse;
 use CatLab\CharonFrontend\Exceptions\UnresolvedMethodException;
@@ -221,32 +222,42 @@ trait FrontCrudController
         // Look for relationships and build tables
         foreach ($resource->getProperties()->getRelationships()->getValues() as $relationship) {
 
+            $childResourceDefinition = $relationship->getField()->getChildResourceDefinition();
+            if (!isset($this->childControllerMap[get_class($childResourceDefinition)])) {
+                continue;
+            }
+
+            $childController = new $this->childControllerMap[get_class($childResourceDefinition)];
+            if (! ($childController instanceof FrontCrudControllerContract)) {
+                abort(500, 'Only controllers implementing FrontCrudControllerContract' .
+                    'can be used for expanding relationships'
+                );
+            }
+
             if ($relationship instanceof ChildrenValue) {
 
-                $childResourceDefinition = $relationship->getField()->getChildResource();
+                $collection = $relationship->getChildren();
 
-                if (!isset($this->childControllerMap[get_class($childResourceDefinition)])) {
-                    continue;
-                }
+            } elseif ($relationship instanceof ChildValue) {
 
-                $childController = new $this->childControllerMap[get_class($childResourceDefinition)];
-                if (! ($childController instanceof FrontCrudControllerContract)) {
-                    abort(500, 'Only controllers implementing FrontCrudControllerContract' .
-                        'can be used for expanding relationships'
-                    );
-                }
+                $collection = new ResourceCollection();
+                $collection->add($relationship->getChild());
 
-                $data['relationships'][] = [
-                    'property' => $relationship,
-                    'title' => $relationship->getField()->getName(),
-                    'table' => $childController->getTableForResourceCollection(
-                        $request,
-                        $relationship->getChildren(),
-                        $relationship->getField()->getChildResource(),
-                        $context
-                    )
-                ];
             }
+
+            $table = $childController->getTableForResourceCollection(
+                $request,
+                $collection,
+                $relationship->getField()->getChildResourceDefinition(),
+                $context
+            );
+
+            $data['relationships'][] = [
+                'multiple' => true,
+                'property' => $relationship,
+                'title' => $relationship->getField()->getName(),
+                'table' => $table
+            ];
 
         }
 
@@ -332,6 +343,8 @@ trait FrontCrudController
      * @param ResourceDefinition $resourceDefinition
      * @param ContextContract $context
      * @return Table
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     public function getTableForResourceCollection (
         Request $request,
@@ -348,6 +361,8 @@ trait FrontCrudController
      * @param ResourceDefinition $resourceDefinition
      * @param ContextContract $context
      * @return Table
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
     public function traitGetTableForResourceCollection (
         Request $request,
