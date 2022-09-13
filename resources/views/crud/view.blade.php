@@ -30,7 +30,14 @@
         @else
             <tr>
                 <th>{{ ucfirst($field->getField()->getDisplayName()) }}</th>
-                <td>{{ $field->getValue() }}</td>
+
+                <td>
+                    @if(is_array($field->getValue()))
+                        <pre>{{ json_encode($field->getValue(), JSON_PRETTY_PRINT) }}</pre>
+                    @else
+                        {{ $field->getValue() }}
+                    @endif
+                </td>
             </tr>
         @endif
 
