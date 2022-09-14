@@ -657,7 +657,7 @@ trait FrontCrudController
      */
     protected function getResourceDefinition()
     {
-        return $this->getApiController()->getResourceDefinition();
+        return $this->getApiController()->getResourceDefinitionFactory()->getDefault();
     }
 
     /**
