@@ -10,7 +10,7 @@
         }
     ],
     "require": {
-        "catlabinteractive/charon-laravel": "~1.5.0"
+        "catlabinteractive/charon-laravel": "~1.6.0"
     },
     "autoload": {
         "psr-4": {
