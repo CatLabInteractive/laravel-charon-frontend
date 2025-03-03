@@ -1,7 +1,7 @@
 <?php
-$properties = [
+$properties = array_merge([], [
     'class' => 'form-control'
-];
+], $properties ?? []);
 ?>
 
 {{ Form::hidden('fields[' . $field->getDisplayName() . '][type]', $field->getType()) }}
