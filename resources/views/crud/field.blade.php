@@ -2,17 +2,25 @@
 $properties = array_merge([], [
     'class' => 'form-control'
 ], $properties ?? []);
+
+$fieldName = 'fields[' . $field->getDisplayName() . '][input][' . $index . '][value]';
 ?>
 
-{{ Form::hidden('fields[' . $field->getDisplayName() . '][type]', $field->getType()) }}
-{{ Form::hidden('fields[' . $field->getDisplayName() . '][multiple]', $field->isArray() ? 1 : 0) }}
+<input type="hidden" name="fields[{{ $field->getDisplayName() }}][type]" value="{{ $field->getType() }}">
+<input type="hidden" name="fields[{{ $field->getDisplayName() }}][multiple]" value="{{ $field->isArray() ? 1 : 0 }}">
 
 @if($field->getType() === 'dateTime')
-    <?php $dateTime = $oldValue ? \Carbon\Carbon::parse($oldValue) : null; ?>
+    <?php
+    $dateTime = $oldValue ? \Carbon\Carbon::parse($oldValue) : null;
+    $dateName = 'fields[' . $field->getDisplayName() . '][input][' . $index . '][date]';
+    $timeName = 'fields[' . $field->getDisplayName() . '][input][' . $index . '][time]';
+    $dateValue = \CatLab\CharonFrontend\Support\FormValue::old($dateName, $dateTime ? $dateTime->format('Y-m-d') : null);
+    $timeValue = \CatLab\CharonFrontend\Support\FormValue::old($timeName, $dateTime ? $dateTime->format('H:i') : null);
+    ?>
 
     <div class="form-group">
         @if($showLabel)
-            {{ Form::label($field->getLabel(), $field->getLabel()) }}
+            <label for="{{ $field->getLabel() }}">{{ \CatLab\CharonFrontend\Support\FormValue::labelText($field->getLabel(), $field->getLabel()) }}</label>
 
             @if($field->getDescription())
                 <small class="form-text field-description">{{ $field->getDescription() }}</small>
@@ -21,25 +29,27 @@ $properties = array_merge([], [
 
         <div class="row">
             <div class="col-auto">
-                {{ Form::date('fields[' . $field->getDisplayName() . '][input]['.$index.'][date]', $dateTime ? $dateTime->format('Y-m-d') : null, $properties) }}
+                <input type="date" name="{{ $dateName }}" value="{{ $dateValue }}"{!! \CatLab\CharonFrontend\Support\FormValue::attributes($properties) !!}>
             </div>
 
             <div class="col-auto">
-                {{ Form::time('fields[' . $field->getDisplayName() . '][input]['.$index.'][time]', $dateTime ? $dateTime->format('H:i') : null, $properties) }}
+                <input type="time" name="{{ $timeName }}" value="{{ $timeValue }}"{!! \CatLab\CharonFrontend\Support\FormValue::attributes($properties) !!}>
             </div>
         </div>
     </div>
 
 @elseif($field->getType() === 'boolean')
 
+    <?php $checked = \CatLab\CharonFrontend\Support\FormValue::checkboxChecked($fieldName, !!$oldValue); ?>
+
     <div class="form-group">
         <div class="form-check">
 
             @if($showLabel)
-                {{ Form::label($field->getDisplayName(), $field->getLabel()) }}
+                <label for="{{ $field->getDisplayName() }}">{{ \CatLab\CharonFrontend\Support\FormValue::labelText($field->getDisplayName(), $field->getLabel()) }}</label>
             @endif
 
-            {{ Form::checkbox('fields[' . $field->getDisplayName() . '][input]['.$index.'][value]', 1, !!$oldValue) }}
+            <input type="checkbox" name="{{ $fieldName }}" value="1"{{ $checked ? ' checked' : '' }}>
 
         </div>
 
@@ -54,10 +64,11 @@ $properties = array_merge([], [
     foreach ($field->getAllowedValues() as $v) {
         $allowedValues[$v] = $v;
     }
+    $selectedValue = \CatLab\CharonFrontend\Support\FormValue::old($fieldName, $oldValue);
     ?>
     <div class="form-group">
         @if($showLabel)
-            {{ Form::label($field->getDisplayName(), $field->getLabel()) }}
+            <label for="{{ $field->getLabel() }}">{{ \CatLab\CharonFrontend\Support\FormValue::labelText($field->getLabel(), $field->getLabel()) }}</label>
 
             @if($field->getDescription())
                 <small class="form-text field-description">{{ $field->getDescription() }}</small>
@@ -65,11 +76,23 @@ $properties = array_merge([], [
         @endif
 
         @if(count($allowedValues) > 0)
-            {{ Form::select('fields[' . $field->getDisplayName() . '][input]['.$index.'][value]', $allowedValues, $oldValue, $properties) }}
+            <select name="{{ $fieldName }}"{!! \CatLab\CharonFrontend\Support\FormValue::attributes($properties) !!}>
+                @foreach($allowedValues as $value => $display)
+                    <option value="{{ $value }}"{{ (string) $value === (string) $selectedValue ? ' selected' : '' }}>{{ $display }}</option>
+                @endforeach
+            </select>
         @elseif($field->getType() === 'html')
-            {{ Form::textarea('fields[' . $field->getDisplayName() . '][input]['.$index.'][value]', $oldValue, [ 'rows' => 5, 'class' => 'form-control html-richtext-input' ] + $properties) }}
+            <?php
+            $textareaAttrs = [ 'rows' => 5, 'class' => 'form-control html-richtext-input' ] + $properties;
+            $textareaAttrs['cols'] = $textareaAttrs['cols'] ?? 50;
+            ?>
+            <textarea name="{{ $fieldName }}"{!! \CatLab\CharonFrontend\Support\FormValue::attributes($textareaAttrs) !!}>{{ $selectedValue }}</textarea>
         @else
-            {{ Form::textarea('fields[' . $field->getDisplayName() . '][input]['.$index.'][value]', $oldValue, [ 'rows' => 1 ] + $properties) }}
+            <?php
+            $textareaAttrs = [ 'rows' => 1 ] + $properties;
+            $textareaAttrs['cols'] = $textareaAttrs['cols'] ?? 50;
+            ?>
+            <textarea name="{{ $fieldName }}"{!! \CatLab\CharonFrontend\Support\FormValue::attributes($textareaAttrs) !!}>{{ $selectedValue }}</textarea>
         @endif
     </div>
 @endif

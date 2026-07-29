@@ -8,6 +8,7 @@ use CatLab\Laravel\Table\TableServiceProvider;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -84,6 +85,9 @@ abstract class TestCase extends OrchestraTestCase
         Schema::create('widgets', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('status')->nullable();
+            $table->boolean('active')->default(false);
+            $table->text('description')->nullable();
             $table->timestamps();
         });
     }
@@ -98,10 +102,13 @@ abstract class TestCase extends OrchestraTestCase
 
         // Front (admin) CRUD routes generated via FrontCrudController's own
         // ::routes() helper, same as an Eukles Admin\* controller would
-        // register in routes/web.php. StartSession is attached explicitly
-        // because testbench's default Kernel doesn't define a 'web'
-        // middleware group; create()/edit() need a working session.
-        Route::middleware([StartSession::class])->group(function () {
+        // register in routes/web.php. StartSession and ShareErrorsFromSession
+        // are attached explicitly because testbench's default Kernel doesn't
+        // define a 'web' middleware group; create()/edit() need a working
+        // session, and crud/form.blade.php + crud/destroy.blade.php both
+        // read $errors (normally shared by ShareErrorsFromSession in the
+        // 'web' group of a real app).
+        Route::middleware([StartSession::class, ShareErrorsFromSession::class])->group(function () {
             WidgetFrontController::routes('/admin/widgets', WidgetFrontController::class);
         });
     }
@@ -126,8 +133,8 @@ abstract class TestCase extends OrchestraTestCase
         return $user;
     }
 
-    protected function seedWidget(string $name = 'Widget One'): Widget
+    protected function seedWidget(string $name = 'Widget One', array $attributes = []): Widget
     {
-        return Widget::create(['name' => $name]);
+        return Widget::create(array_merge(['name' => $name], $attributes));
     }
 }

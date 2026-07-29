@@ -4,19 +4,24 @@
 
     @if(!$errors->isEmpty())
         <div class="alert alert-warning">
-            {{ Html::ul($errors->all()) }}
+            <ul>
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
         </div>
     @endif
 
-    {{ Form::open(array('url' => $action)) }}
-    {{ method_field($method) }}
+    <form method="POST" action="{{ $action }}" accept-charset="UTF-8">
+        @csrf
+        @method($method)
 
-    @include('charonfrontend::crud.form-fields')
+        @include('charonfrontend::crud.form-fields')
 
-    <div class="form-group">
-        {{ Form::submit(ucfirst($verb), array('class' => 'btn btn-primary')) }}
-    </div>
+        <div class="form-group">
+            <input type="submit" value="{{ ucfirst($verb) }}" class="btn btn-primary">
+        </div>
 
-    {{ Form::close() }}
+    </form>
 
 @endsection

@@ -2,17 +2,23 @@
 
 @section('cfcontent')
 
-    {{ Html::ul($errors->all()) }}
+    @if($errors->any())
+        <ul>
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    @endif
 
-    {{ Form::open(array('url' => $action)) }}
-    {{ method_field('DELETE') }}
+    <form method="POST" action="{{ $action }}" accept-charset="UTF-8">
+        @csrf
+        @method('DELETE')
 
-    <p>Are you sure you want to remove this?</p>
+        <p>Are you sure you want to remove this?</p>
 
-    {{ Form::submit(ucfirst('Yes'), array('class' => 'btn btn-danger')) }}
-    <a href="{{ $back }}" class="btn btn-primary">No</a>
+        <input type="submit" value="Yes" class="btn btn-danger">
+        <a href="{{ $back }}" class="btn btn-primary">No</a>
 
-    {{ Form::close() }}
+    </form>
 
 @endsection
-

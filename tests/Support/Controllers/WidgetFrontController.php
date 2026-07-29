@@ -11,20 +11,12 @@ use Illuminate\Routing\Controller;
  * FrontCrudControllerContract / README "Adding a new admin-manageable
  * resource").
  *
- * createFormView() is overridden on purpose: the real crud/form.blade.php
- * and crud/form-fields.blade.php views call the `Form::` and `Html::`
- * facades, which come from laravelcollective/html - a package that has no
- * Laravel 11/12 support (confirmed dead upstream, last compatible release
- * targets Laravel 10) and is therefore not, and should not become, a
- * dependency of this package. Rendering the real form blade would only be
- * possible by dragging in a facade provider that breaks the L12 install
- * target this whole test suite exists to protect. Overriding this single
- * documented extension point lets the test still drive the real
- * FrontCrudController::formView() logic (field filtering, relationship/
- * linkable discovery, action URL building) end to end and assert on its
- * output as a data structure, per the brief's explicit allowance for
- * "a response, a rendered view, a data structure" - just skipping the
- * blade render step that has a non-portable dependency.
+ * As of Task 14, createFormView() is no longer overridden: crud/form.blade.php,
+ * form-fields.blade.php and field.blade.php were rewritten to plain Blade/HTML
+ * (see CatLab\CharonFrontend\Support\FormValue and task-14-report.md), so the
+ * real view renders cleanly under Laravel 9-12 without laravelcollective/html.
+ * This uses FrontCrudController's default createFormView() (`return view($view,
+ * $properties);`), exercising the actual rendered HTML end to end.
  */
 class WidgetFrontController extends Controller
 {
@@ -52,22 +44,5 @@ class WidgetFrontController extends Controller
     public function createApiController()
     {
         return new WidgetApiController();
-    }
-
-    protected function createFormView($action, $view, $properties)
-    {
-        $fieldNames = [];
-        foreach ($properties['fields'] as $field) {
-            $fieldNames[] = $field->getDisplayName();
-        }
-
-        return response()->json([
-            'view' => $view,
-            'fieldNames' => $fieldNames,
-            'linkableCount' => count($properties['linkables']),
-            'action' => $properties['action'],
-            'verb' => $properties['verb'],
-            'method' => $properties['method'],
-        ]);
     }
 }

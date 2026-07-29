@@ -33,7 +33,7 @@
             ])
         @else
             <?php
-            $oldValue = (Form::old($field->getDisplayName())) ??
+            $oldValue = (old($field->getDisplayName())) ??
                 (isset($resource) && $resource->getProperties()->getProperty($field)
                     ? $resource->getProperties()->getProperty($field)->getValue() : '');
             ?>
@@ -64,7 +64,9 @@
         $extraProperties = [];
         $values = [];
 
-        if ($linkable['field']->getCardinality() === \CatLab\Charon\Enums\Cardinality::MANY) {
+        $isMany = $linkable['field']->getCardinality() === \CatLab\Charon\Enums\Cardinality::MANY;
+
+        if ($isMany) {
             $extraProperties['multiple'] = 'multiple';
             $name = 'linkable[' . $field->getDisplayName() . '][][id]';
         } else {
@@ -77,27 +79,45 @@
             $values[$k] = $v;
         }
 
-        if ($oldValue = Form::old($field->getDisplayName())) {}
+        if ($oldValue = old($field->getDisplayName())) {}
         elseif(isset($resource) && $resource->getProperties()->getProperty($field)) {
             $value = $resource->getProperties()->getProperty($field)->getValue();
             $oldValue = [];
 
-            if ($linkable['field']->getCardinality() === \CatLab\Charon\Enums\Cardinality::MANY) {
+            if ($isMany) {
                 foreach ($value as $v) {
                     $oldValue[] = $v['id'];
                 }
             } else {
                 $oldValue = $value['id'];
             }
+        } else {
+            $oldValue = null;
         }
+
+        // repopulate from a redisplayed (failed-validation) form, same as
+        // Form::select()'s own internal old-input lookup used to
+        $oldValue = \CatLab\CharonFrontend\Support\FormValue::old($name, $oldValue);
+
+        $selectAttributes = array_merge($properties, $extraProperties);
         ?>
 
         <div class="form-group">
-            {{ Form::label($field->getDisplayName(), ucfirst($field->getDisplayName())) }}
-            {{ Form::select($name, $values, $oldValue, array_merge($properties, $extraProperties)) }}
+            <label for="{{ $field->getDisplayName() }}">{{ \CatLab\CharonFrontend\Support\FormValue::labelText($field->getDisplayName(), ucfirst($field->getDisplayName())) }}</label>
+            <select name="{{ $name }}"{!! \CatLab\CharonFrontend\Support\FormValue::attributes($selectAttributes) !!}>
+                @foreach($values as $value => $display)
+                    <?php
+                    if ($isMany) {
+                        $isSelected = is_array($oldValue) && (in_array($value, $oldValue, true) || in_array((string) $value, $oldValue, true));
+                    } else {
+                        $isSelected = ((string) $value === (string) $oldValue);
+                    }
+                    ?>
+                    <option value="{{ $value }}"{{ $isSelected ? ' selected' : '' }}>{{ $display }}</option>
+                @endforeach
+            </select>
         </div>
 
     @endforeach
 
-    {{ Form::hidden('linkableFields', implode(',', $linkableFields)) }}
-
+    <input type="hidden" name="linkableFields" value="{{ implode(',', $linkableFields) }}">
