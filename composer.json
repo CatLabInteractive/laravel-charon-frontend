@@ -29,22 +29,6 @@
             "Tests\\": "tests/"
         }
     },
-    "repositories": [
-        {
-            "type": "path",
-            "url": "/home/daedeloth/Workbench/worktrees/charon-laravel-platform",
-            "options": {
-                "symlink": true
-            }
-        },
-        {
-            "type": "path",
-            "url": "/home/daedeloth/Workbench/worktrees/charon-platform",
-            "options": {
-                "symlink": true
-            }
-        }
-    ],
     "config": {
         "audit": {
             "block-insecure": false
