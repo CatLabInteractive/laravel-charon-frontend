@@ -15,9 +15,18 @@
         "catlabinteractive/laravel-table": "^1.0.2",
         "laravel/framework": "^9.0 || ^10.0 || ^11.0 || ^12.0"
     },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5.10 || ^10.5 || ^11.0 || ^12.0",
+        "orchestra/testbench": "^7.0 || ^8.0 || ^9.0 || ^10.0"
+    },
     "autoload": {
         "psr-4": {
             "CatLab\\CharonFrontend\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
         }
     },
     "repositories": [
