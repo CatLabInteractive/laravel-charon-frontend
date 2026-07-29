@@ -1114,7 +1114,7 @@ trait FrontCrudController
      * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
      * @throws \CatLab\Charon\Exceptions\ResourceException
      */
-    protected function redirectBackToIndex(Request $request, RESTResource $resource = null)
+    protected function redirectBackToIndex(Request $request, ?RESTResource $resource = null)
     {
         // look for a return parameter
         $return = $request->session()->get('frontcrud_index_redirect');
