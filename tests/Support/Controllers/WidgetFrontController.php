@@ -2,8 +2,10 @@
 
 namespace Tests\Support\Controllers;
 
+use CatLab\CharonFrontend\Contracts\FrontCrudControllerContract;
 use CatLab\CharonFrontend\Controllers\FrontCrudController;
 use Illuminate\Routing\Controller;
+use Tests\Support\Definitions\CategoryDefinition;
 
 /**
  * Admin-panel-style front controller under test. Uses FrontCrudController
@@ -18,7 +20,7 @@ use Illuminate\Routing\Controller;
  * This uses FrontCrudController's default createFormView() (`return view($view,
  * $properties);`), exercising the actual rendered HTML end to end.
  */
-class WidgetFrontController extends Controller
+class WidgetFrontController extends Controller implements FrontCrudControllerContract
 {
     use FrontCrudController;
 
@@ -29,6 +31,10 @@ class WidgetFrontController extends Controller
         // instead of the trait's 'layouts.app' default, which doesn't exist
         // in a testbench app.
         $this->setLayout('layouts.test');
+
+        // Lets tables link related categories to CategoryFrontController's
+        // show page, the way Eukles' Admin\* controllers wire theirs.
+        $this->setChildController(CategoryDefinition::class, CategoryFrontController::class);
     }
 
     public static function getRouteIdParameterName(): string
