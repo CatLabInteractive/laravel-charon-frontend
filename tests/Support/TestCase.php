@@ -13,9 +13,15 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
+use Tests\Support\Controllers\CategoryApiController;
+use Tests\Support\Controllers\CategoryFrontController;
+use Tests\Support\Controllers\NestedCategoryFrontController;
+use Tests\Support\Controllers\NestedWidgetFrontController;
+use Tests\Support\Controllers\PlainWidgetFrontController;
 use Tests\Support\Controllers\WidgetApiController;
 use Tests\Support\Controllers\WidgetFrontController;
 use Tests\Support\Models\AdminUser;
+use Tests\Support\Models\Category;
 use Tests\Support\Models\Widget;
 
 /**
@@ -81,9 +87,17 @@ abstract class TestCase extends OrchestraTestCase
     protected function afterRefreshingDatabase()
     {
         Schema::dropIfExists('widgets');
+        Schema::dropIfExists('categories');
+
+        Schema::create('categories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
 
         Schema::create('widgets', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('category_id')->nullable();
             $table->string('name');
             $table->string('status')->nullable();
             $table->boolean('active')->default(false);
@@ -99,6 +113,8 @@ abstract class TestCase extends OrchestraTestCase
         // wire up.
         Route::get('/widgets', [WidgetApiController::class, 'index']);
         Route::get('/widgets/{id}', [WidgetApiController::class, 'view']);
+        Route::get('/categories', [CategoryApiController::class, 'index']);
+        Route::get('/categories/{id}', [CategoryApiController::class, 'view']);
 
         // Front (admin) CRUD routes generated via FrontCrudController's own
         // ::routes() helper, same as an Eukles Admin\* controller would
@@ -110,6 +126,10 @@ abstract class TestCase extends OrchestraTestCase
         // 'web' group of a real app).
         Route::middleware([StartSession::class, ShareErrorsFromSession::class])->group(function () {
             WidgetFrontController::routes('/admin/widgets', WidgetFrontController::class);
+            CategoryFrontController::routes('/admin/categories', CategoryFrontController::class);
+            PlainWidgetFrontController::routes('/admin/plain-widgets', PlainWidgetFrontController::class);
+            NestedWidgetFrontController::routes('/admin/nested-widgets', NestedWidgetFrontController::class);
+            NestedCategoryFrontController::routes('/admin/shops/{shop}/categories', NestedCategoryFrontController::class);
         });
     }
 
@@ -136,5 +156,10 @@ abstract class TestCase extends OrchestraTestCase
     protected function seedWidget(string $name = 'Widget One', array $attributes = []): Widget
     {
         return Widget::create(array_merge(['name' => $name], $attributes));
+    }
+
+    protected function seedCategory(string $name = 'Category One'): Category
+    {
+        return Category::create(['name' => $name]);
     }
 }

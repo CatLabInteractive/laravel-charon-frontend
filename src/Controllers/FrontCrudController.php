@@ -27,6 +27,7 @@ use CatLab\Laravel\Table\Table;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Routing\Exceptions\UrlGenerationException;
 use Illuminate\Support\HtmlString;
 use Illuminate\View\View;
 use Redirect;
@@ -96,6 +97,12 @@ trait FrontCrudController
     private $childControllerMap = [];
 
     /**
+     * Child controllers instantiated so far, by class name.
+     * @var FrontCrudControllerContract[]
+     */
+    private $childControllers = [];
+
+    /**
      * @var string
      */
     private $layout = 'layouts.app';
@@ -149,6 +156,11 @@ trait FrontCrudController
             $this->getResourceDefinition(),
             $response->getContext()
         );
+
+        // The index request is forwarded to the api as-is, so charon's sort
+        // and filter parameters in the url already apply; the table only
+        // needs to expose them.
+        $table->sortable()->filterable();
 
         $view = $this->getView('index');
         return view(
@@ -223,32 +235,40 @@ trait FrontCrudController
         foreach ($resource->getProperties()->getRelationships()->getValues() as $relationship) {
 
             $childResourceDefinition = $relationship->getField()->getChildResourceDefinition();
-            if (!isset($this->childControllerMap[get_class($childResourceDefinition)])) {
+
+            if ($relationship instanceof ChildValue) {
+                // A single related resource is one row in the details table:
+                // a label linking to its show page when a child controller is
+                // known, a plain label otherwise.
+                $table = $this->getTableForResourceCollection(
+                    $request,
+                    new ResourceCollection(),
+                    $childResourceDefinition,
+                    $context
+                );
+
+                $data['relationships'][] = [
+                    'multiple' => false,
+                    'property' => $relationship,
+                    'title' => $relationship->getField()->getName(),
+                    'cell' => $table->makeCell($relationship)
+                ];
                 continue;
             }
 
-            $childController = new $this->childControllerMap[get_class($childResourceDefinition)];
-            if (! ($childController instanceof FrontCrudControllerContract)) {
-                abort(500, 'Only controllers implementing FrontCrudControllerContract' .
-                    'can be used for expanding relationships'
-                );
+            if (!($relationship instanceof ChildrenValue)) {
+                continue;
             }
 
-            if ($relationship instanceof ChildrenValue) {
-
-                $collection = $relationship->getChildren();
-
-            } elseif ($relationship instanceof ChildValue) {
-
-                $collection = new ResourceCollection();
-                $collection->add($relationship->getChild());
-
+            $childController = $this->getChildController($childResourceDefinition);
+            if (!$childController) {
+                continue;
             }
 
             $table = $childController->getTableForResourceCollection(
                 $request,
-                $collection,
-                $relationship->getField()->getChildResourceDefinition(),
+                $relationship->getChildren(),
+                $childResourceDefinition,
                 $context
             );
 
@@ -377,6 +397,10 @@ trait FrontCrudController
             $request->getRequestUri()
         );
 
+        $table->setResourceUrlResolver(function (RESTResource $related) use ($request) {
+            return $this->getRelatedResourceUrl($request, $related);
+        });
+
         if ($this->hasMethod(Action::VIEW)) {
             $table->modelAction(
                 (new ResourceAction(
@@ -449,6 +473,81 @@ trait FrontCrudController
     {
         $this->childControllerMap[$resourceDefinitionClassName] = $controllerClassName;
         return $this;
+    }
+
+    /**
+     * Instantiate the front controller registered for a resource definition
+     * through setChildController(), if any.
+     * @param ResourceDefinition $resourceDefinition
+     * @return FrontCrudControllerContract|null
+     */
+    protected function getChildController(ResourceDefinition $resourceDefinition)
+    {
+        $className = $this->childControllerMap[get_class($resourceDefinition)] ?? null;
+        if (!$className) {
+            return null;
+        }
+
+        if (!isset($this->childControllers[$className])) {
+            $childController = new $className;
+            if (! ($childController instanceof FrontCrudControllerContract)) {
+                abort(500, 'Only controllers implementing FrontCrudControllerContract ' .
+                    'can be used for expanding relationships'
+                );
+            }
+            $this->childControllers[$className] = $childController;
+        }
+
+        return $this->childControllers[$className];
+    }
+
+    /**
+     * Url of the show page of a resource that appears as a relationship in
+     * one of this controller's tables, or null when there is none: no child
+     * controller registered for its definition, viewing not allowed, or a
+     * route that needs parameters this request doesn't have (a child mounted
+     * under another parent, e.g. /parents/{parent}/children/{id}).
+     * @param Request $request
+     * @param RESTResource $related
+     * @return string|null
+     */
+    protected function getRelatedResourceUrl(Request $request, RESTResource $related)
+    {
+        $childController = $this->getChildController($related->getResourceDefinition());
+        if (!$childController) {
+            return null;
+        }
+
+        try {
+            return $childController->getShowUrl($request, $related);
+        } catch (UrlGenerationException $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Url of this controller's show page for a resource, or null when it
+     * can't be shown.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @return string|null
+     * @throws UrlGenerationException when the route needs parameters the request doesn't carry
+     */
+    public function getShowUrl(Request $request, RESTResource $resource): ?string
+    {
+        if (!$this->hasMethod(Action::VIEW) || !$this->canViewModel($request, $resource)) {
+            return null;
+        }
+
+        $action = (new ResourceAction(
+            $this->getControllerAction(Action::VIEW),
+            $this->getActionText(Action::VIEW, $resource->getResourceDefinition()),
+            static::getRouteIdParameterName()
+        ))
+            ->setRouteParameters($this->getShowRouteParameters($request))
+            ->setQueryParameters($this->getShowQueryParameters($request));
+
+        return $action->getUrl($resource);
     }
 
     /**
@@ -719,7 +818,7 @@ trait FrontCrudController
      */
     protected function getRawControllerAction($action)
     {
-        return '\\' . self::class . '@' . $action;
+        return '\\' . static::class . '@' . $action;
     }
 
     /**
@@ -1140,13 +1239,13 @@ trait FrontCrudController
         // redirect to default index (if allowed)
         if ($this->canViewIndex($request)) {
             $parameters = $this->getIndexRouteParameters($request);
-            return Redirect::to(action('\\' . self::class . '@index', $parameters));
+            return Redirect::to(action('\\' . static::class . '@index', $parameters));
         } elseif ($resource && $this->isMethodAllowed($request, Action::VIEW, $resource)) {
             $parameters = [ static::getRouteIdParameterName() => $resource->getIdentifiers()->getValues()[0]->getValue() ];
-            return Redirect::to(action('\\' . self::class . '@show', $parameters));
+            return Redirect::to(action('\\' . static::class . '@show', $parameters));
         } elseif ($resource && $this->isMethodAllowed($request, Action::EDIT, $resource)) {
             $parameters = [ static::getRouteIdParameterName() => $resource->getIdentifiers()->getValues()[0]->getValue() ];
-            return Redirect::to(action('\\' . self::class . '@edit', $parameters));
+            return Redirect::to(action('\\' . static::class . '@edit', $parameters));
         } else {
             return Redirect::to('/');
         }

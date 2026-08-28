@@ -49,7 +49,7 @@
         @if(!$relationship['multiple'])
             <tr>
                 <th>{{ ucfirst($relationship['title']) }}</th>
-                <th>{{ $relationship['table']->render() }}</th>
+                <td>@include('table::cell', [ 'cell' => $relationship['cell'] ])</td>
             </tr>
         @endif
 

@@ -15,6 +15,9 @@ use Tests\Support\Models\Widget;
  *  - 'status': enum -> <select> with a selected option
  *  - 'active': boolean -> checkbox with checked-state
  *  - 'description': html -> rich <textarea> (field.blade.php's 'html' branch)
+ *  - 'category': expanded one-relationship -> a linked relationship cell in
+ *    index/show tables. 'name' is sortable + filterable, 'status' filterable,
+ *    driving the table's sort links and filter form.
  */
 class WidgetDefinition extends ResourceDefinition
 {
@@ -30,12 +33,15 @@ class WidgetDefinition extends ResourceDefinition
                 ->string()
                 ->required()
                 ->writeable()
+                ->sortable()
+                ->filterable()
                 ->visible(true, true)
 
             ->field('status')
                 ->string()
                 ->enum(['draft', 'published'])
                 ->writeable()
+                ->filterable()
                 ->visible(true, true)
 
             ->field('active')
@@ -48,5 +54,10 @@ class WidgetDefinition extends ResourceDefinition
                 ->writeable()
                 ->visible(true, true)
         ;
+
+        $this->relationship('category', CategoryDefinition::class)
+            ->one()
+            ->expanded()
+            ->visible(true, true);
     }
 }
