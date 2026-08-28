@@ -139,6 +139,16 @@ trait FrontCrudController
      */
     public function index(Request $request)
     {
+        // The table's filter form submits every field, blank ones included
+        // (as '' or, after ConvertEmptyStringsToNull, as null), and charon
+        // would filter on that; drop them.
+        foreach ($request->query->keys() as $key) {
+            $value = $request->query->get($key);
+            if ($value === '' || $value === null) {
+                $request->query->remove($key);
+            }
+        }
+
         $response = $this->dispatchToApi(Action::INDEX, $request);
 
         if (!($response instanceof ResourceResponse)) {

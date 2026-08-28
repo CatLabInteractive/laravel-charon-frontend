@@ -84,6 +84,20 @@ class RelationshipAndQueryTest extends TestCase
         $this->assertMatchesRegularExpression('#<select[^>]*name="status"#', $response->getContent());
     }
 
+    public function testBlankFilterInputsDoNotFilter()
+    {
+        // Submitting the filter form sends every field, blank ones included.
+        $this->actingAsAuthorizedAdmin();
+        $this->seedWidget('Alpha');
+        $this->seedWidget('Beta');
+
+        $response = $this->get('/admin/widgets?name=&status=');
+
+        $response->assertStatus(200);
+        $response->assertSee('Alpha');
+        $response->assertSee('Beta');
+    }
+
     public function testShowRendersASingleRelationshipAsALinkedDetailRow()
     {
         $this->withoutExceptionHandling();
