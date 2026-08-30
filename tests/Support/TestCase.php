@@ -18,6 +18,7 @@ use Tests\Support\Controllers\CategoryFrontController;
 use Tests\Support\Controllers\NestedCategoryFrontController;
 use Tests\Support\Controllers\NestedWidgetFrontController;
 use Tests\Support\Controllers\PlainWidgetFrontController;
+use Tests\Support\Controllers\ScopedWidgetFrontController;
 use Tests\Support\Controllers\WidgetApiController;
 use Tests\Support\Controllers\WidgetFrontController;
 use Tests\Support\Models\AdminUser;
@@ -128,6 +129,7 @@ abstract class TestCase extends OrchestraTestCase
             WidgetFrontController::routes('/admin/widgets', WidgetFrontController::class);
             CategoryFrontController::routes('/admin/categories', CategoryFrontController::class);
             PlainWidgetFrontController::routes('/admin/plain-widgets', PlainWidgetFrontController::class);
+            ScopedWidgetFrontController::routes('/admin/scoped-widgets', ScopedWidgetFrontController::class);
             NestedWidgetFrontController::routes('/admin/nested-widgets', NestedWidgetFrontController::class);
             NestedCategoryFrontController::routes('/admin/shops/{shop}/categories', NestedCategoryFrontController::class);
         });

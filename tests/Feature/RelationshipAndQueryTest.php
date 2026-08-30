@@ -2,6 +2,10 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Support\Facades\Gate;
+use Tests\Support\Models\AdminUser;
+use Tests\Support\Models\Category;
+use Tests\Support\Policies\CategoryPolicy;
 use Tests\Support\TestCase;
 
 /**
@@ -106,6 +110,30 @@ class RelationshipAndQueryTest extends TestCase
         $widget = $this->seedWidget('Hammer', ['category_id' => $category->id]);
 
         $response = $this->get('/admin/widgets/' . $widget->id);
+
+        $response->assertStatus(200);
+        $this->assertMatchesRegularExpression(
+            '#<th>Category</th>\s*<td>\s*<a href="http://localhost/admin/categories/' . $category->id . '">\s*Tools\s*</a>#',
+            $response->getContent()
+        );
+    }
+
+    /**
+     * The detail row for a single related resource is rendered by the
+     * controller of the page it appears on, but it describes somebody else's
+     * resource. Its authorization parameters therefore say nothing about
+     * that resource, and asking its policy about them hands the policy a
+     * scope of the wrong type.
+     */
+    public function testShowDoesNotAskThisControllersAuthorizationAboutARelatedResource()
+    {
+        Gate::policy(Category::class, CategoryPolicy::class);
+        $this->actingAs(new AdminUser());
+
+        $category = $this->seedCategory('Tools');
+        $widget = $this->seedWidget('Hammer', ['category_id' => $category->id]);
+
+        $response = $this->withoutExceptionHandling()->get('/admin/scoped-widgets/' . $widget->id);
 
         $response->assertStatus(200);
         $this->assertMatchesRegularExpression(
