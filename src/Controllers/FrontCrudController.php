@@ -249,8 +249,12 @@ trait FrontCrudController
             if ($relationship instanceof ChildValue) {
                 // A single related resource is one row in the details table:
                 // a label linking to its show page when a child controller is
-                // known, a plain label otherwise.
-                $table = $this->getTableForResourceCollection(
+                // known, a plain label otherwise. Only a cell is needed, so
+                // the table is built bare: the actions a full table carries
+                // belong to *this* controller's resource, not to the related
+                // one, and asking for them here would point this controller's
+                // routes and authorization at somebody else's definition.
+                $table = $this->makeTable(
                     $request,
                     new ResourceCollection(),
                     $childResourceDefinition,
@@ -386,15 +390,15 @@ trait FrontCrudController
     }
 
     /**
+     * A table without any actions on it: enough to turn resources into
+     * labels, links and cells, which is all a read-only rendering needs.
      * @param Request $request
      * @param ResourceCollection $collection
      * @param ResourceDefinition $resourceDefinition
      * @param ContextContract $context
      * @return Table
-     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
-     * @throws \CatLab\Charon\Exceptions\ResourceException
      */
-    public function traitGetTableForResourceCollection (
+    protected function makeTable(
         Request $request,
         ResourceCollection $collection,
         ResourceDefinition $resourceDefinition,
@@ -410,6 +414,26 @@ trait FrontCrudController
         $table->setResourceUrlResolver(function (RESTResource $related) use ($request) {
             return $this->getRelatedResourceUrl($request, $related);
         });
+
+        return $table;
+    }
+
+    /**
+     * @param Request $request
+     * @param ResourceCollection $collection
+     * @param ResourceDefinition $resourceDefinition
+     * @param ContextContract $context
+     * @return Table
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     * @throws \CatLab\Charon\Exceptions\ResourceException
+     */
+    public function traitGetTableForResourceCollection (
+        Request $request,
+        ResourceCollection $collection,
+        ResourceDefinition $resourceDefinition,
+        ContextContract $context
+    ): Table {
+        $table = $this->makeTable($request, $collection, $resourceDefinition, $context);
 
         if ($this->hasMethod(Action::VIEW)) {
             $table->modelAction(
