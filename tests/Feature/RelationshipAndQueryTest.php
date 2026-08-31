@@ -57,6 +57,47 @@ class RelationshipAndQueryTest extends TestCase
         $response->assertDontSee('/categories/' . $category->id);
     }
 
+    public function testControllerCanNameRelatedResourcesAndDeclineOnTheRest()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $tools = $this->seedCategory('Tools');
+        $this->seedWidget('Hammer', ['category_id' => $tools->id]);
+        $gadgets = $this->seedCategory('Gadgets');
+        $this->seedWidget('Torch', ['category_id' => $gadgets->id]);
+
+        $response = $this->get('/admin/labelled-widgets');
+
+        $response->assertStatus(200);
+        // named by the controller...
+        $this->assertMatchesRegularExpression(
+            '#<a href="http://localhost/admin/categories/' . $tools->id . '">\s*Toolbox \(Tools\)\s*</a>#',
+            $response->getContent()
+        );
+        // ...and, where it returned null, left to laravel-table's default.
+        $this->assertMatchesRegularExpression(
+            '#<a href="http://localhost/admin/categories/' . $gadgets->id . '">\s*Gadgets\s*</a>#',
+            $response->getContent()
+        );
+    }
+
+    /**
+     * The detail row show() builds for a single related resource comes from a
+     * bare makeTable(), not from getTableForResourceCollection() -- the path
+     * this hook exists for, and the one a controller overriding the public
+     * method cannot reach.
+     */
+    public function testShowDetailRowIsNamedByTheController()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $tools = $this->seedCategory('Tools');
+        $widget = $this->seedWidget('Hammer', ['category_id' => $tools->id]);
+
+        $response = $this->get('/admin/labelled-widgets/' . $widget->id);
+
+        $response->assertStatus(200);
+        $response->assertSee('Toolbox (Tools)');
+    }
+
     public function testIndexHeadersSortTheCollection()
     {
         $this->actingAsAuthorizedAdmin();
