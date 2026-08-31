@@ -80,6 +80,24 @@ class RelationshipAndQueryTest extends TestCase
         );
     }
 
+    /**
+     * The detail row show() builds for a single related resource comes from a
+     * bare makeTable(), not from getTableForResourceCollection() -- the path
+     * this hook exists for, and the one a controller overriding the public
+     * method cannot reach.
+     */
+    public function testShowDetailRowIsNamedByTheController()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $tools = $this->seedCategory('Tools');
+        $widget = $this->seedWidget('Hammer', ['category_id' => $tools->id]);
+
+        $response = $this->get('/admin/labelled-widgets/' . $widget->id);
+
+        $response->assertStatus(200);
+        $response->assertSee('Toolbox (Tools)');
+    }
+
     public function testIndexHeadersSortTheCollection()
     {
         $this->actingAsAuthorizedAdmin();

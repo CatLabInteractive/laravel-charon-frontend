@@ -3,6 +3,7 @@
 namespace Tests\Support\Controllers;
 
 use CatLab\Charon\Models\RESTResource;
+use Illuminate\Http\Request;
 
 /**
  * Widget admin controller that names some of the resources appearing in its
@@ -12,7 +13,7 @@ use CatLab\Charon\Models\RESTResource;
  */
 class LabelledWidgetFrontController extends WidgetFrontController
 {
-    protected function getRelatedResourceLabel(RESTResource $related): ?string
+    protected function getRelatedResourceLabel(Request $request, RESTResource $related): ?string
     {
         $name = $related->toArray()['name'] ?? null;
 

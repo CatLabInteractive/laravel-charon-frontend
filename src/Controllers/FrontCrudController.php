@@ -392,6 +392,11 @@ trait FrontCrudController
     /**
      * A table without any actions on it: enough to turn resources into
      * labels, links and cells, which is all a read-only rendering needs.
+     *
+     * The only place a Table is constructed, and so the only place the
+     * relationship resolvers are installed -- both paths that build one
+     * (traitGetTableForResourceCollection() and show()'s detail rows) come
+     * through here, and they need to keep doing so.
      * @param Request $request
      * @param ResourceCollection $collection
      * @param ResourceDefinition $resourceDefinition
@@ -415,8 +420,8 @@ trait FrontCrudController
             return $this->getRelatedResourceUrl($request, $related);
         });
 
-        $table->setResourceLabelResolver(function (RESTResource $related) {
-            return $this->getRelatedResourceLabel($related);
+        $table->setResourceLabelResolver(function (RESTResource $related) use ($request) {
+            return $this->getRelatedResourceLabel($request, $related);
         });
 
         return $table;
@@ -570,10 +575,21 @@ trait FrontCrudController
      * doesn't. Override for resources that identify themselves through some
      * other field -- returning null for the ones that don't need it, rather
      * than restating that default.
+     *
+     * "This controller's tables" is meant literally, and matches how
+     * getRelatedResourceUrl() behaves: the child tables show() builds for a
+     * ChildrenValue relationship come from the registered child controller,
+     * so they carry that controller's labels rather than this one's.
+     *
+     * $request is unused here and by most overrides, but the signature takes
+     * it anyway -- PHP cannot widen a method's arity later without breaking
+     * every override, and a label that varies by locale or by the scope the
+     * route carries has nowhere else to read it from.
+     * @param Request $request
      * @param RESTResource $related
      * @return string|null
      */
-    protected function getRelatedResourceLabel(RESTResource $related): ?string
+    protected function getRelatedResourceLabel(Request $request, RESTResource $related): ?string
     {
         return null;
     }
