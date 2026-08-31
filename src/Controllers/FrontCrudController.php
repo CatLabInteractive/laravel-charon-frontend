@@ -415,6 +415,10 @@ trait FrontCrudController
             return $this->getRelatedResourceUrl($request, $related);
         });
 
+        $table->setResourceLabelResolver(function (RESTResource $related) {
+            return $this->getRelatedResourceLabel($related);
+        });
+
         return $table;
     }
 
@@ -557,6 +561,21 @@ trait FrontCrudController
         } catch (UrlGenerationException $e) {
             return null;
         }
+    }
+
+    /**
+     * Label a resource is shown as when it appears as a relationship in one
+     * of this controller's tables, or null to let laravel-table decide: a
+     * name-like field when the resource has one, its identifier when it
+     * doesn't. Override for resources that identify themselves through some
+     * other field -- returning null for the ones that don't need it, rather
+     * than restating that default.
+     * @param RESTResource $related
+     * @return string|null
+     */
+    protected function getRelatedResourceLabel(RESTResource $related): ?string
+    {
+        return null;
     }
 
     /**

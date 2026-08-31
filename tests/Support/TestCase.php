@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use Tests\Support\Controllers\CategoryApiController;
 use Tests\Support\Controllers\CategoryFrontController;
+use Tests\Support\Controllers\LabelledWidgetFrontController;
 use Tests\Support\Controllers\NestedCategoryFrontController;
 use Tests\Support\Controllers\NestedWidgetFrontController;
 use Tests\Support\Controllers\PlainWidgetFrontController;
@@ -129,6 +130,7 @@ abstract class TestCase extends OrchestraTestCase
             WidgetFrontController::routes('/admin/widgets', WidgetFrontController::class);
             CategoryFrontController::routes('/admin/categories', CategoryFrontController::class);
             PlainWidgetFrontController::routes('/admin/plain-widgets', PlainWidgetFrontController::class);
+            LabelledWidgetFrontController::routes('/admin/labelled-widgets', LabelledWidgetFrontController::class);
             ScopedWidgetFrontController::routes('/admin/scoped-widgets', ScopedWidgetFrontController::class);
             NestedWidgetFrontController::routes('/admin/nested-widgets', NestedWidgetFrontController::class);
             NestedCategoryFrontController::routes('/admin/shops/{shop}/categories', NestedCategoryFrontController::class);
