@@ -468,6 +468,7 @@ trait FrontCrudController
                 ))
                     ->setRouteParameters($this->getEditRouteParameters($request))
                     ->setQueryParameters($this->getEditQueryParameters($request))
+                    ->setIcon('edit')
                     ->setCondition(function($model) use ($request) {
                         return $this->canEditModel($request, $model);
                     })
@@ -483,6 +484,7 @@ trait FrontCrudController
                 ))
                     ->setRouteParameters($this->getDestroyRouteParameters($request))
                     ->setQueryParameters($this->getDestroyQueryParameters($request))
+                    ->setIcon('delete')
                     ->setCondition(function($model) use ($request) {
                         return $this->canDestroyModel($request, $model);
                     })
