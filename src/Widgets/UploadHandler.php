@@ -22,6 +22,16 @@ interface UploadHandler
     public function store(UploadedFile $file, FormField $field);
 
     /**
+     * Remove a file stored by store() that ended up unused, because the
+     * form it came with failed to save. The library keeps the uploaded
+     * file itself for the next try; this only undoes store().
+     *
+     * @param mixed $id
+     * @return void
+     */
+    public function discard($id): void;
+
+    /**
      * Url of a preview image for the linked resource, or null.
      *
      * @param mixed $id

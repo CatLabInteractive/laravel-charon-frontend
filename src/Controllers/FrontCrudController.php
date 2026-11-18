@@ -22,6 +22,7 @@ use CatLab\CharonFrontend\Exceptions\UnresolvedMethodException;
 
 use CatLab\CharonFrontend\Models\Table\ResourceAction;
 use CatLab\CharonFrontend\Widgets\FormField;
+use CatLab\CharonFrontend\Widgets\PendingUploads;
 use CatLab\CharonFrontend\Widgets\ProvidesOptions;
 use CatLab\CharonFrontend\Widgets\Widget;
 use CatLab\CharonFrontend\Widgets\WidgetRegistry;
@@ -243,8 +244,10 @@ trait FrontCrudController
             abort(403);
         }
 
-        $newRequest = $this->transformFormInput($request, Action::CREATE);
-        $response = $this->dispatchToApi(Action::CREATE, $newRequest);
+        $response = $this->saveWithUploads($request, function () use ($request) {
+            $newRequest = $this->transformFormInput($request, Action::CREATE);
+            return $this->dispatchToApi(Action::CREATE, $newRequest);
+        });
 
         if (!($response instanceof ResourceResponse)) {
             return $this->handleErrorResponse($response, 'store');
@@ -395,8 +398,10 @@ trait FrontCrudController
             abort(403);
         }
 
-        $apiRequest = $this->transformFormInput($request, Action::EDIT);
-        $response = $this->dispatchToApi(Action::EDIT, $apiRequest);
+        $response = $this->saveWithUploads($request, function () use ($request) {
+            $apiRequest = $this->transformFormInput($request, Action::EDIT);
+            return $this->dispatchToApi(Action::EDIT, $apiRequest);
+        });
 
         if (!($response instanceof ResourceResponse)) {
             return $this->handleErrorResponse($response, 'store');
@@ -1477,6 +1482,37 @@ trait FrontCrudController
         Session::flash('message', __('charonfrontend::crud.deleted'));
 
         return $this->redirectAfterDestroy($request, $resource);
+    }
+
+    /**
+     * Read the form and save it through the API. File widgets store their
+     * uploads while the form is read; when the API refuses the save (or
+     * anything throws), those are discarded again and the uploaded files
+     * are kept for the next try, so nothing unused stays behind and the
+     * user doesn't have to pick their file again.
+     *
+     * @param Request $request
+     * @param callable $save function (): ResourceResponse|Response
+     * @return mixed
+     */
+    protected function saveWithUploads(Request $request, callable $save)
+    {
+        $uploads = app(PendingUploads::class);
+
+        try {
+            $response = $save();
+        } catch (\Throwable $e) {
+            $uploads->rollback($request);
+            throw $e;
+        }
+
+        if ($response instanceof ResourceResponse) {
+            $uploads->commit($request);
+        } else {
+            $uploads->rollback($request);
+        }
+
+        return $response;
     }
 
     /**

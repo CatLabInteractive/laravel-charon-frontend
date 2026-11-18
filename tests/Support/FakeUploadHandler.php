@@ -18,6 +18,11 @@ class FakeUploadHandler implements UploadHandler
         return Category::create([ 'name' => $file->getClientOriginalName() ])->id;
     }
 
+    public function discard($id): void
+    {
+        Category::whereKey($id)->delete();
+    }
+
     public function getPreviewUrl($id): ?string
     {
         return '/preview/' . $id;

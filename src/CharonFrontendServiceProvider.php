@@ -36,6 +36,7 @@ class CharonFrontendServiceProvider extends ServiceProvider
      */
     public function register()
     {
-
+        // One per request (and per job): the uploads of the save in progress.
+        $this->app->scoped(\CatLab\CharonFrontend\Widgets\PendingUploads::class);
     }
 }

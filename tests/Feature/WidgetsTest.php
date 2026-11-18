@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use CatLab\CharonFrontend\Widgets\CheckboxWidget;
 use CatLab\CharonFrontend\Widgets\FileWidget;
+use CatLab\CharonFrontend\Widgets\PendingUploads;
 use CatLab\CharonFrontend\Widgets\LinkableWidget;
 use CatLab\CharonFrontend\Widgets\NumberWidget;
 use CatLab\CharonFrontend\Widgets\SelectWidget;
@@ -249,6 +250,95 @@ class WidgetsTest extends TestCase
             ->assertSessionHasErrors('fields.category.file');
 
         $this->assertSame(0, Category::count());
+    }
+
+    /**
+     * The API refuses the save (name is required): the upload stored while
+     * reading the form is discarded again, and the form offers the file on
+     * the next try.
+     */
+    public function testAFailedSaveDiscardsTheUploadAndKeepsTheFile()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $widget = $this->seedWidget('Hammer');
+
+        $this->from('/admin/upload-widgets/' . $widget->id . '/edit')
+            ->put('/admin/upload-widgets/' . $widget->id, [
+                'fields' => [
+                    'name' => '',
+                    'category' => [ 'id' => '', 'file' => UploadedFile::fake()->image('poster.png', 60, 90) ],
+                ],
+            ])
+            ->assertRedirect('/admin/upload-widgets/' . $widget->id . '/edit');
+
+        $this->assertSame(0, Category::count(), 'The stored upload is discarded.');
+        $this->assertNull($widget->fresh()->category_id);
+
+        $token = session()->getOldInput('fields.category.kept');
+        $this->assertIsString($token);
+        $this->assertFileExists(PendingUploads::directory() . '/' . $token);
+
+        $this->get('/admin/upload-widgets/' . $widget->id . '/edit')
+            ->assertStatus(200)
+            ->assertSee('name="fields[category][kept]" value="' . $token . '" checked', false)
+            ->assertSee('poster.png')
+            ->assertSee('src="data:image/png;base64,', false);
+
+        // The next try uses the kept file.
+        $this->put('/admin/upload-widgets/' . $widget->id, [
+            'fields' => [
+                'name' => 'Hammer',
+                'category' => [ 'id' => '', 'kept' => $token ],
+            ],
+        ])->assertRedirect();
+
+        $stored = Category::where('name', 'poster.png')->firstOrFail();
+        $this->assertSame($stored->id, (int) $widget->fresh()->category_id);
+        $this->assertFileDoesNotExist(PendingUploads::directory() . '/' . $token);
+    }
+
+    /**
+     * A kept file belongs to the session that uploaded it.
+     */
+    public function testAnotherSessionsKeptFileIsIgnored()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $widget = $this->seedWidget('Hammer');
+
+        $this->put('/admin/upload-widgets/' . $widget->id, [
+            'fields' => [
+                'name' => 'Hammer',
+                'category' => [ 'id' => '', 'kept' => str_repeat('a', 40) ],
+            ],
+        ])->assertRedirect();
+
+        $this->assertSame(0, Category::count());
+        $this->assertNull($widget->fresh()->category_id);
+    }
+
+    /**
+     * Unchecking "use the file you uploaded" falls back to the picker.
+     */
+    public function testAnUncheckedKeptFileIsNotUsed()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $existing = $this->seedCategory('existing.png');
+        $widget = $this->seedWidget('Hammer');
+
+        $this->put('/admin/upload-widgets/' . $widget->id, [
+            'fields' => [
+                'name' => '',
+                'category' => [ 'id' => '', 'file' => UploadedFile::fake()->image('poster.png', 60, 90) ],
+            ],
+        ]);
+        $this->assertIsString(session()->getOldInput('fields.category.kept'));
+
+        $this->put('/admin/upload-widgets/' . $widget->id, [
+            'fields' => [ 'name' => 'Hammer', 'category' => [ 'id' => (string) $existing->id ] ],
+        ])->assertRedirect();
+
+        $this->assertSame($existing->id, (int) $widget->fresh()->category_id);
+        $this->assertSame(1, Category::count());
     }
 
     public function testLinkableWidgetReadsARelationshipToMany()
