@@ -2,8 +2,6 @@
 
 namespace CatLab\CharonFrontend\Controllers;
 
-use Carbon\Carbon;
-use CatLab\Base\Helpers\ArrayHelper;
 use CatLab\Charon\Collections\ResourceCollection;
 use CatLab\Charon\Enums\Action;
 use CatLab\Charon\Interfaces\Context as ContextContract;
@@ -13,6 +11,7 @@ use CatLab\Charon\Models\Context;
 use CatLab\Charon\Models\Properties\Base\Field;
 use CatLab\Charon\Models\Properties\IdentifierField;
 use CatLab\Charon\Models\Properties\RelationshipField;
+use CatLab\Charon\Models\Properties\ResourceField;
 use CatLab\Charon\Laravel\Models\ResourceResponse;
 use CatLab\Charon\Models\RESTResource;
 use CatLab\Charon\Models\Values\ChildrenValue;
@@ -22,14 +21,20 @@ use CatLab\CharonFrontend\Exceptions\UnexpectedResponse;
 use CatLab\CharonFrontend\Exceptions\UnresolvedMethodException;
 
 use CatLab\CharonFrontend\Models\Table\ResourceAction;
+use CatLab\CharonFrontend\Widgets\FormField;
+use CatLab\CharonFrontend\Widgets\ProvidesOptions;
+use CatLab\CharonFrontend\Widgets\Widget;
+use CatLab\CharonFrontend\Widgets\WidgetRegistry;
 use CatLab\Laravel\Table\Models\CollectionAction;
 use CatLab\Laravel\Table\Table;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Exceptions\UrlGenerationException;
 use Illuminate\Support\HtmlString;
 use Illuminate\View\View;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Redirect;
 use Route;
 use Session;
@@ -106,6 +111,11 @@ trait FrontCrudController
      * @var string
      */
     private $layout = 'layouts.app';
+
+    /**
+     * @var WidgetRegistry|null
+     */
+    private $widgetRegistry;
 
     /**
      * Map actions to api controller actions.
@@ -207,7 +217,7 @@ trait FrontCrudController
      */
     public function store(Request $request)
     {
-        $newRequest = $this->transformFormInput($request);
+        $newRequest = $this->transformFormInput($request, Action::CREATE);
         $response = $this->dispatchToApi(Action::CREATE, $newRequest);
 
         if (!($response instanceof ResourceResponse)) {
@@ -323,7 +333,7 @@ trait FrontCrudController
      */
     public function update(Request $request, $id)
     {
-        $request = $this->transformFormInput($request);
+        $request = $this->transformFormInput($request, Action::EDIT);
         $response = $this->dispatchToApi(Action::EDIT, $request);
 
         if (!($response instanceof ResourceResponse)) {
@@ -956,46 +966,26 @@ trait FrontCrudController
      */
     protected function formView($action, $processmethod, $response = null)
     {
-        $context = new Context($action, []);
-
-        $model = null;
-        if ($response || $response instanceof ResourceResponse) {
-            $model = $response->getResource();
-
-            /** @var ResourceDefinition $resourceDefinition */
-            $resourceDefinition = $response->getResource()->getResourceDefinition();
-        } else {
-            /** @var ResourceDefinition $resourceDefinition */
-            $resourceDefinition = $this->getResourceDefinition();
+        $resource = null;
+        if ($response instanceof ResourceResponse) {
+            $resource = $response->getResource();
         }
 
-        $fields = $resourceDefinition
-            ->getFields()
-            ->filter(
-                function(Field $field) {
-                    return !$field instanceof IdentifierField
-                        && !$field instanceof RelationshipField;
-                }
-            )
-            ->getWithAction($context->getAction());
+        $request = \Request::instance();
 
-        $relationships = $resourceDefinition
-            ->getFields()
-            ->filter(
-                function(Field $field) use ($context) {
-                    if ($field instanceof RelationshipField) {
-                        if (
-                            $field->canLinkExistingEntities($context)
-                        ) {
-                            return true;
-                        }
-                    }
-                    return false;
-                }
-            )
-            ->getWithAction($context->getAction());
+        $formFields = [];
+        $multipart = false;
+        foreach ($this->getFormFields($action, $resource) as $formField) {
+            $widget = $this->widgets()->resolve($formField->getField());
+            $formField->setOptions($this->resolveFieldOptions($request, $formField, $widget));
 
-        $view = $this->getView('form');
+            $formFields[] = [
+                'field' => $formField,
+                'widget' => $widget,
+            ];
+
+            $multipart = $multipart || $widget->isMultipart();
+        }
 
         switch ($processmethod) {
 
@@ -1011,24 +1001,206 @@ trait FrontCrudController
                 break;
         }
 
-        // prepare linksables
-        $linkables = [];
-        foreach ($relationships as $relationship) {
-            $linkables[] = [
-                'field' => $relationship,
-                'values' => $this->resolveValues($relationship)
-            ];
-        }
-
-        return $this->createFormView($action, $view, [
-            'fields' => $fields,
-            'linkables' => $linkables,
+        return $this->createFormView($action, $this->getView('form'), [
+            'formFields' => $formFields,
+            'multipart' => $multipart,
             'action' => $this->action($processmethod),
-            'resource' => $model,
+            'resource' => $resource,
             'verb' => $verb,
             'method' => $method,
             'layout' => $this->layout
         ]);
+    }
+
+    /**
+     * The widget registry of this controller. Register widgets in the
+     * constructor: $this->widgets()->forField('description', new TextareaWidget()).
+     * @return WidgetRegistry
+     */
+    protected function widgets(): WidgetRegistry
+    {
+        if (!isset($this->widgetRegistry)) {
+            $this->widgetRegistry = new WidgetRegistry();
+        }
+        return $this->widgetRegistry;
+    }
+
+    /**
+     * The fields a create or edit form shows, in definition order: the
+     * writeable fields, and the relationships that can link existing
+     * resources.
+     * @param string $action Action::CREATE or Action::EDIT
+     * @param RESTResource|null $resource
+     * @return FormField[]
+     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
+     */
+    protected function getFormFields($action, ?RESTResource $resource = null): array
+    {
+        $context = new Context($action, []);
+
+        $resourceDefinition = $resource
+            ? $resource->getResourceDefinition()
+            : $this->getResourceDefinition();
+
+        $fields = $resourceDefinition
+            ->getFields()
+            ->filter(
+                function (Field $field) use ($context) {
+                    if ($field instanceof IdentifierField) {
+                        return false;
+                    }
+                    if ($field instanceof RelationshipField) {
+                        return $field->canLinkExistingEntities($context);
+                    }
+                    return true;
+                }
+            )
+            ->getWithAction($context->getAction());
+
+        $out = [];
+        foreach ($fields as $field) {
+            $out[] = new FormField($field, $resource);
+        }
+        return $out;
+    }
+
+    /**
+     * Options of a field: the allowed values of an enum field, the
+     * resources that can be linked for a relationship, none otherwise.
+     * @param Request $request
+     * @param FormField $formField
+     * @param Widget $widget
+     * @return string[] Label by value.
+     */
+    protected function resolveFieldOptions(Request $request, FormField $formField, Widget $widget): array
+    {
+        $field = $formField->getField();
+
+        if ($widget instanceof ProvidesOptions) {
+            return $widget->getOptions($request, $formField);
+        }
+
+        if ($field instanceof RelationshipField) {
+            return $this->resolveLinkableOptions($request, $field);
+        }
+
+        if ($field instanceof ResourceField) {
+            $out = [];
+            foreach (($field->getAllowedValues() ?? []) as $value) {
+                $out[$value] = $value;
+            }
+            return $out;
+        }
+
+        return [];
+    }
+
+    /**
+     * The resources a relationship can link to, label by identifier.
+     *
+     * When a child controller is registered for the related definition,
+     * they come from that controller's api index -- the same list, scope
+     * and authorization as its own index page. Otherwise resolveValues()
+     * lists every entity of the related model; override one of the two
+     * when that is too much.
+     * @param Request $request
+     * @param RelationshipField $field
+     * @return string[]
+     */
+    protected function resolveLinkableOptions(Request $request, RelationshipField $field): array
+    {
+        $childController = $this->getChildController($field->getChildResourceDefinition());
+        if ($childController) {
+            return $childController->getLinkableOptions($request);
+        }
+
+        return $this->resolveValues($field);
+    }
+
+    /**
+     * This controller's resources as options for a relationship in another
+     * controller's form: label by identifier, from the api index (scoped
+     * and authorized as the index is), at most LINKABLE_OPTIONS_LIMIT.
+     * Empty when the index isn't allowed.
+     * @param Request $request The request of the form that shows them.
+     * @return string[]
+     */
+    public function getLinkableOptions(Request $request): array
+    {
+        if (!$this->hasMethod(Action::INDEX)) {
+            return [];
+        }
+
+        $route = $request->route() ? clone $request->route() : null;
+
+        $indexRequest = Request::create($request->getPathInfo(), 'GET', [
+            'records' => static::getLinkableOptionsLimit(),
+        ]);
+        $indexRequest->setUserResolver($request->getUserResolver());
+        $indexRequest->setRouteResolver(function () use ($route) {
+            return $route;
+        });
+        if ($request->hasSession()) {
+            $indexRequest->setLaravelSession($request->session());
+        }
+
+        try {
+            $response = $this->dispatchToApi(Action::INDEX, $indexRequest);
+        } catch (AuthorizationException $e) {
+            return [];
+        } catch (HttpExceptionInterface $e) {
+            if ($e->getStatusCode() === 403 || $e->getStatusCode() === 404) {
+                return [];
+            }
+            throw $e;
+        }
+
+        if (!($response instanceof ResourceResponse) || !($response->getResource() instanceof ResourceCollection)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($response->getResource() as $resource) {
+            $identifiers = $resource->getIdentifiers()->getValues();
+            if (count($identifiers) === 0) {
+                continue;
+            }
+            $out[$identifiers[0]->getValue()] = $this->getLinkableOptionLabel($request, $resource);
+        }
+        return $out;
+    }
+
+    /**
+     * @return int
+     */
+    protected static function getLinkableOptionsLimit(): int
+    {
+        return 500;
+    }
+
+    /**
+     * Label of a resource of this controller in a linkable picker: the
+     * controller's own getRelatedResourceLabel() when it has one, else a
+     * name-like field, else the identifier.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @return string
+     */
+    protected function getLinkableOptionLabel(Request $request, RESTResource $resource): string
+    {
+        $label = $this->getRelatedResourceLabel($request, $resource);
+        if ($label !== null) {
+            return $label;
+        }
+
+        $values = $resource->toArray();
+        foreach ([ 'name', 'title', 'label' ] as $candidate) {
+            if (isset($values[$candidate]) && is_scalar($values[$candidate]) && $values[$candidate] !== '') {
+                return (string) $values[$candidate];
+            }
+        }
+
+        return '#' . $resource->getIdentifiers()->getValues()[0]->getValue();
     }
 
     /**
@@ -1146,133 +1318,29 @@ trait FrontCrudController
     }
 
     /**
-     * Translate form input into Charon post input.
+     * Translate form input into Charon input: every form field's widget
+     * reads its own input.
      * @param Request $request
+     * @param string|null $action Action::CREATE or Action::EDIT; guessed from the http method when null.
      * @return Request
+     * @throws \Illuminate\Validation\ValidationException
      */
-    protected function transformFormInput(Request $request)
+    protected function transformFormInput(Request $request, $action = null)
     {
-        $out = [];
-
-        $fields = $request->input('fields');
-        if (isset($fields)) {
-            foreach ($fields as $k => $v) {
-                if (is_array($v)) {
-                    if ($v['multiple']) {
-                        $out[$k] = [];
-                        if (isset($v['input']) && is_array($v['input'])) {
-                            foreach ($v['input'] as $input) {
-                                $fieldValue = $this->transformInputField($v['type'], $input);
-                                if ($fieldValue !== null) {
-                                    $out[$k][] = $fieldValue;
-                                }
-                            }
-                        }
-                    } elseif (isset($v['input']) && is_array($v['input']) && key_exists(0, $v['input'])) {
-                        $out[$k] = $this->transformInputField($v['type'], $v['input'][0]);
-                    } else {
-                        $out[$k] = $this->transformInputField($v['type'], [ 'value' => null ]);
-                    }
-                }
-            }
+        if ($action === null) {
+            $action = $request->isMethod('post') ? Action::CREATE : Action::EDIT;
         }
 
-        // Relationships
-        $linkables = $request->input('linkable');
-        $linkableFields = $request->input('linkableFields');
-
-        if (isset($linkableFields)) {
-            $linkableFields = explode(',', $linkableFields);
-
-            foreach ($linkableFields as $k) {
-
-                if (isset($linkables[$k])) {
-                    $v = $linkables[$k];
-                } else {
-                    // if not provided, it must be a multiselect
-                    $v = null;
-                    $out[$k] = [
-                        'items' => []
-                    ];
-                }
-
-                if ($v) {
-                    if (!ArrayHelper::isAssociative($v)) {
-                        $out[$k] = [
-                            'items' => []
-                        ];
-
-                        foreach ($v as $vv) {
-                            if ($this->isLinkableValid($vv)) {
-                                $out[$k]['items'][] = $vv;
-                            } else {
-                                $out[$k] = null;
-                                break;
-                            }
-                        }
-                    } elseif ($this->isLinkableValid($v)) {
-                        $out[$k] = $v;
-                    } else {
-                        $out[$k] = null;
-                    }
-                }
-            }
+        $out = [];
+        foreach ($this->getFormFields($action) as $formField) {
+            $widget = $this->widgets()->resolve($formField->getField());
+            $out[$formField->getName()] = $widget->read($request, $formField);
         }
 
         $newRequest = $request->duplicate();
         $newRequest->replace($out);
 
-        //$request->request = $out;
         return $newRequest;
-    }
-
-
-    /**
-     * @param $identifiers
-     * @return bool
-     */
-    protected function isLinkableValid($identifiers)
-    {
-        if (!is_array($identifiers)) {
-            return false;
-        }
-
-        foreach ($identifiers as $identifier) {
-            if (!empty($identifier)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * @param $type
-     * @param array $v
-     * @return mixed|null|string
-     */
-    protected function transformInputField($type, array $v)
-    {
-        switch ($type) {
-            case 'dateTime':
-
-                if (isset($v['date']) && isset($v['time'])) {
-                    $dateTime = Carbon::parse($v['date'] . ' ' . $v['time']);
-                    return $dateTime->format(DATE_RFC822);
-                }
-
-                break;
-
-            case 'boolean':
-                return isset($v['value']) && $v['value'];
-
-            default:
-                if (isset($v['value'])) {
-                    return $v['value'];
-                }
-                break;
-        }
-
-        return null;
     }
 
     /**

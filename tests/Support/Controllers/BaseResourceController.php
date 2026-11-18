@@ -39,4 +39,14 @@ class BaseResourceController extends Controller
 
         return $context;
     }
+
+    /**
+     * Front forms post as application/x-www-form-urlencoded or
+     * multipart/form-data, like an application's api base controller allows.
+     */
+    protected function setInputParsers(\CatLab\Charon\Models\Context $context)
+    {
+        $context->addInputParser(\CatLab\Charon\Laravel\InputParsers\JsonBodyInputParser::class);
+        $context->addInputParser(\CatLab\Charon\Laravel\InputParsers\PostInputParser::class);
+    }
 }
