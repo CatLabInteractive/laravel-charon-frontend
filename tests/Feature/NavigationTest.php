@@ -44,6 +44,40 @@ class NavigationTest extends TestCase
             ->assertSee('<li class="breadcrumb-item active" aria-current="page">Edit</li>', false);
     }
 
+    /**
+     * Rows open their show page: the view action is a visible button and
+     * the row-click script uses it as the row's link.
+     */
+    public function testRowsLinkToTheirShowPage()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $widget = $this->seedWidget('Hammer');
+
+        $html = $this->get('/admin/widgets')
+            ->assertStatus(200)
+            ->assertSee('table-action-view', false)
+            ->assertSee('tr.charon-row-link', false)
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('#href="http://localhost/admin/widgets/' . $widget->id . '"\s+class="[^"]*table-action-view#', $html);
+    }
+
+    /**
+     * html() fields show as HTML on the show page, cleaned again on the way
+     * out (older values were stored unpurified).
+     */
+    public function testHtmlFieldsRenderAsCleanedHtml()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $widget = $this->seedWidget('Hammer', [ 'description' => '<p>Hallo <strong>daar</strong></p><script>alert(1)</script>' ]);
+
+        $this->get('/admin/widgets/' . $widget->id)
+            ->assertStatus(200)
+            ->assertSee('<div class="charon-html-value"><p>Hallo <strong>daar</strong></p></div>', false)
+            ->assertDontSee('alert(1)', false)
+            ->assertDontSee('&lt;p&gt;', false);
+    }
+
     public function testTheChromeFollowsTheAppLocale()
     {
         $this->actingAsAuthorizedAdmin();

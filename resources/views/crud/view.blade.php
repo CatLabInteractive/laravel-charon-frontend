@@ -40,6 +40,9 @@
                 <td>
                     @if(is_array($field->getValue()))
                         <pre>{{ json_encode($field->getValue(), JSON_PRETTY_PRINT) }}</pre>
+                    @elseif($field->getField()->getType() === \CatLab\Requirements\Enums\PropertyType::HTML && is_string($field->getValue()))
+                        {{-- html() fields render as HTML, cleaned again: values stored before the purifier existed aren't. --}}
+                        <div class="charon-html-value">{!! \CatLab\Charon\CharonConfig::instance()->getHtmlPurifier()->purify($field->getValue()) !!}</div>
                     @else
                         {{ $field->getValue() }}
                     @endif
