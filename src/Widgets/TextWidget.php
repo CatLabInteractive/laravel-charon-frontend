@@ -55,6 +55,40 @@ class TextWidget extends BaseWidget
         ];
     }
 
+    /**
+     * A single-line input would drop line breaks, and saving the form would
+     * silently flatten the value. A value that has them gets a textarea.
+     */
+    public function render(FormField $field): string
+    {
+        $data = $this->getViewData($field);
+
+        $view = $this->view;
+        if ($view === 'charonfrontend::widgets.text' && $this->hasLineBreaks($data['values'])) {
+            $view = 'charonfrontend::widgets.textarea';
+            $data['attributes'] += [ 'rows' => 5 ];
+        }
+
+        return view($view, array_merge($data, [
+            'field' => $field,
+            'widget' => $this,
+        ]))->render();
+    }
+
+    /**
+     * @param array $values
+     * @return bool
+     */
+    protected function hasLineBreaks(array $values): bool
+    {
+        foreach ($values as $value) {
+            if (is_string($value) && strpbrk($value, "\r\n") !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function read(Request $request, FormField $field)
     {
         $value = $this->input($request, $field);
