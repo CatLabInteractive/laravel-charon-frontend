@@ -33,6 +33,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Exceptions\UrlGenerationException;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Redirect;
@@ -118,6 +119,12 @@ trait FrontCrudController
     private $widgetRegistry;
 
     /**
+     * The front controller this one is nested under, see setParentController().
+     * @var array|null [ 'controller' => class name, 'parameter' => route parameter ]
+     */
+    private $parentController;
+
+    /**
      * Map actions to api controller actions.
      * @var array
      */
@@ -187,7 +194,8 @@ trait FrontCrudController
             $view,
             [
                 'table' => $table,
-                'layout' => $this->layout
+                'layout' => $this->layout,
+                'chrome' => $this->getPageChrome($request, Action::INDEX),
             ]
         );
     }
@@ -201,9 +209,6 @@ trait FrontCrudController
      */
     public function create(Request $request)
     {
-        // set the return parameter
-        $request->session()->put('frontcrud_index_redirect', $request->input($this->getReturnParameter()));
-
         return $this->formView(Action::CREATE, 'store');
     }
 
@@ -241,15 +246,16 @@ trait FrontCrudController
 
         $context = $response->getContext();
 
-        $data = [
-            'layout' => $this->layout,
-            'resource' => $resource,
-            'relationships' => []
-        ];
-
         if (! ($resource instanceof RESTResource)) {
             abort(404, 'Only Resources can be shown.');
         }
+
+        $data = [
+            'layout' => $this->layout,
+            'resource' => $resource,
+            'relationships' => [],
+            'chrome' => $this->getPageChrome($request, Action::VIEW, $resource),
+        ];
 
         // Look for relationships and build tables
         foreach ($resource->getProperties()->getRelationships()->getValues() as $relationship) {
@@ -274,7 +280,7 @@ trait FrontCrudController
                 $data['relationships'][] = [
                     'multiple' => false,
                     'property' => $relationship,
-                    'title' => $relationship->getField()->getName(),
+                    'title' => (new FormField($relationship->getField()))->getLabel(),
                     'cell' => $table->makeCell($relationship)
                 ];
                 continue;
@@ -299,7 +305,7 @@ trait FrontCrudController
             $data['relationships'][] = [
                 'multiple' => true,
                 'property' => $relationship,
-                'title' => $relationship->getField()->getName(),
+                'title' => (new FormField($relationship->getField()))->getLabel(),
                 'table' => $table
             ];
 
@@ -316,9 +322,6 @@ trait FrontCrudController
      */
     public function edit(Request $request)
     {
-        // set the return parameter
-        $request->session()->put('frontcrud_index_redirect', $request->input($this->getReturnParameter()));
-
         $response = $this->dispatchToApi(Action::VIEW, $request);
         return $this->formView(Action::EDIT, 'update', $response);
     }
@@ -333,8 +336,8 @@ trait FrontCrudController
      */
     public function update(Request $request, $id)
     {
-        $request = $this->transformFormInput($request, Action::EDIT);
-        $response = $this->dispatchToApi(Action::EDIT, $request);
+        $apiRequest = $this->transformFormInput($request, Action::EDIT);
+        $response = $this->dispatchToApi(Action::EDIT, $apiRequest);
 
         if (!($response instanceof ResourceResponse)) {
             return $this->handleErrorResponse($response, 'store');
@@ -350,9 +353,6 @@ trait FrontCrudController
      */
     public function confirmDelete(Request $request)
     {
-        // set the return parameter
-        $request->session()->put('frontcrud_index_redirect', $request->input($this->getReturnParameter()));
-
         $resource = $this->dispatchToApi(Action::VIEW, $request);
         $resource = $resource->getResource();
 
@@ -360,8 +360,11 @@ trait FrontCrudController
         return view($view, [
             'resource' => $resource,
             'action' => $this->action('destroy'),
-            'back' => $this->action('index'),
-            'layout' => $this->layout
+            'back' => $this->getCancelUrl($request, $resource),
+            'returnParameter' => $this->getReturnParameter(),
+            'return' => $this->getReturnUrl($request),
+            'layout' => $this->layout,
+            'chrome' => $this->getPageChrome($request, Action::DESTROY, $resource),
         ]);
     }
 
@@ -1008,7 +1011,11 @@ trait FrontCrudController
             'resource' => $resource,
             'verb' => $verb,
             'method' => $method,
-            'layout' => $this->layout
+            'layout' => $this->layout,
+            'chrome' => $this->getPageChrome($request, $action, $resource),
+            'cancel' => $this->getCancelUrl($request, $resource),
+            'returnParameter' => $this->getReturnParameter(),
+            'return' => $this->getReturnUrl($request),
         ]);
     }
 
@@ -1253,11 +1260,9 @@ trait FrontCrudController
      */
     protected function afterStore(Request $request, RESTResource $newResource)
     {
-        $entityName = $this->getResourceDefinition()->getEntityName();
+        Session::flash('message', Str::ucfirst($this->getEntityLabel()) . ' created.');
 
-        Session::flash('message', 'A new ' . $entityName . ' was born...');
-
-        return $this->redirectBackToIndex($request, $newResource);
+        return $this->redirectAfterSave($request, $newResource);
     }
 
     /**
@@ -1270,10 +1275,9 @@ trait FrontCrudController
      */
     protected function afterUpdate(Request $request, RESTResource $resource)
     {
-        $entityName = $this->getResourceDefinition()->getEntityName();
         Session::flash('message', 'Saved.');
 
-        return $this->redirectBackToIndex($request, $resource);
+        return $this->redirectAfterSave($request, $resource);
     }
 
     /**
@@ -1286,10 +1290,9 @@ trait FrontCrudController
      */
     protected function afterDestroy(Request $request, RESTResource $resource)
     {
-        $entityName = $this->getResourceDefinition()->getEntityName();
         Session::flash('message', 'Deleted.');
 
-        return $this->redirectBackToIndex($request);
+        return $this->redirectAfterDestroy($request, $resource);
     }
 
     /**
@@ -1344,50 +1347,417 @@ trait FrontCrudController
     }
 
     /**
-     * Called after create or destroy;
-     * redirect back to the index page.
+     * Nest this controller under another front controller, e.g. ticket
+     * categories under events at /events/{event}/ticketCategories: the
+     * breadcrumbs then start with the parent's ("Events › Quiz night"), and
+     * saving a child created or edited from the parent's page goes back to
+     * that page.
+     * @param string $controllerClassName The parent front controller.
+     * @param string $routeParameter The route parameter of this controller's routes that holds the parent's id.
+     * @return $this
+     */
+    protected function setParentController(string $controllerClassName, string $routeParameter)
+    {
+        $this->parentController = [
+            'controller' => $controllerClassName,
+            'parameter' => $routeParameter,
+        ];
+        return $this;
+    }
+
+    /**
+     * Title, breadcrumbs and actions shown above every crud page
+     * (charonfrontend::crud.chrome).
+     * @param Request $request
+     * @param string $action Action::INDEX, VIEW, CREATE, EDIT or DESTROY
+     * @param RESTResource|null $resource
+     * @return array [ 'title' => string, 'breadcrumbs' => [ [ 'label', 'url' ] ], 'actions' => [ [ 'label', 'url', 'style' ] ] ]
+     */
+    protected function getPageChrome(Request $request, string $action, ?RESTResource $resource = null): array
+    {
+        switch ($action) {
+            case Action::INDEX:
+                $title = $this->getIndexTitle();
+                break;
+
+            case Action::CREATE:
+                $title = 'New ' . $this->getEntityLabel();
+                break;
+
+            default:
+                $title = $resource ? $this->getResourceTitle($request, $resource) : Str::ucfirst($this->getEntityLabel());
+                break;
+        }
+
+        return [
+            'title' => $title,
+            'breadcrumbs' => $this->getBreadcrumbs($request, $action, $resource),
+            'actions' => $this->getPageActions($request, $action, $resource),
+        ];
+    }
+
+    /**
+     * Title of the index page: the entity name in plural ("Ticket categories").
+     * @return string
+     */
+    protected function getIndexTitle(): string
+    {
+        return Str::ucfirst(Str::plural($this->getEntityLabel()));
+    }
+
+    /**
+     * The entity name in words, lower case ("ticket category").
+     * @return string
+     */
+    protected function getEntityLabel(): string
+    {
+        return str_replace('_', ' ', Str::snake($this->getResourceDefinition()->getEntityName()));
+    }
+
+    /**
+     * Title of a resource's show, edit and delete pages; the same label the
+     * resource gets in linkable pickers.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @return string
+     */
+    protected function getResourceTitle(Request $request, RESTResource $resource): string
+    {
+        return $this->getLinkableOptionLabel($request, $resource);
+    }
+
+    /**
+     * The breadcrumbs of a page: the parent's trail (see
+     * setParentController()), this controller's index, the resource, and the
+     * page itself when it isn't the resource's show page. The last crumb has
+     * no url.
+     * @param Request $request
+     * @param string $action
+     * @param RESTResource|null $resource
+     * @return array
+     */
+    protected function getBreadcrumbs(Request $request, string $action, ?RESTResource $resource = null): array
+    {
+        $crumbs = $this->getParentBreadcrumbs($request);
+
+        $crumbs[] = [
+            'label' => $this->getIndexTitle(),
+            'url' => $this->getIndexUrl($request),
+        ];
+
+        if ($resource && $action !== Action::INDEX && $action !== Action::CREATE) {
+            $crumbs[] = [
+                'label' => $this->getResourceTitle($request, $resource),
+                'url' => $this->safeShowUrl($request, $resource),
+            ];
+        }
+
+        switch ($action) {
+            case Action::CREATE:
+                $crumbs[] = [ 'label' => 'New', 'url' => null ];
+                break;
+
+            case Action::EDIT:
+                $crumbs[] = [ 'label' => $this->getEditActionLabel($this->getResourceDefinition()), 'url' => null ];
+                break;
+
+            case Action::DESTROY:
+                $crumbs[] = [ 'label' => $this->getDestroyActionLabel($this->getResourceDefinition()), 'url' => null ];
+                break;
+        }
+
+        $crumbs[count($crumbs) - 1]['url'] = null;
+        return $crumbs;
+    }
+
+    /**
+     * Breadcrumbs of the parent controller's resource this page is nested
+     * under: its index and the resource itself. Empty without a parent.
+     * @param Request $request
+     * @return array
+     */
+    protected function getParentBreadcrumbs(Request $request): array
+    {
+        $parent = $this->getParentController();
+        if (!$parent) {
+            return [];
+        }
+
+        $id = $request->route($this->parentController['parameter']);
+        return $parent->getBreadcrumbTrail($request, $id);
+    }
+
+    /**
+     * Breadcrumbs that lead to one of this controller's resources (by id) or,
+     * without an id, to its index; for the pages of a child controller.
+     * @param Request $request The child page's request.
+     * @param mixed $id
+     * @return array
+     */
+    public function getBreadcrumbTrail(Request $request, $id = null): array
+    {
+        $viewRequest = $this->makeSubRequest($request, $id);
+
+        $crumbs = $this->getParentBreadcrumbs($viewRequest);
+        $crumbs[] = [
+            'label' => $this->getIndexTitle(),
+            'url' => $this->getIndexUrl($viewRequest),
+        ];
+
+        if ($id === null) {
+            return $crumbs;
+        }
+
+        $resource = null;
+        try {
+            $response = $this->dispatchToApi(Action::VIEW, $viewRequest);
+            if ($response instanceof ResourceResponse && $response->getResource() instanceof RESTResource) {
+                $resource = $response->getResource();
+            }
+        } catch (AuthorizationException $e) {
+            // Shown without a label or a link below.
+        } catch (HttpExceptionInterface $e) {
+            if ($e->getStatusCode() !== 403 && $e->getStatusCode() !== 404) {
+                throw $e;
+            }
+        }
+
+        $crumbs[] = [
+            'label' => $resource ? $this->getResourceTitle($viewRequest, $resource) : '#' . $id,
+            'url' => $resource ? $this->safeShowUrl($viewRequest, $resource) : null,
+        ];
+
+        return $crumbs;
+    }
+
+    /**
+     * The buttons above a page: Edit and Delete on a show page.
+     * Override (and merge with the parent's result) to add app actions.
+     * @param Request $request
+     * @param string $action
+     * @param RESTResource|null $resource
+     * @return array [ [ 'label' => string, 'url' => string, 'style' => 'primary'|'secondary'|'danger' ] ]
+     */
+    protected function getPageActions(Request $request, string $action, ?RESTResource $resource = null): array
+    {
+        $actions = [];
+        if ($action !== Action::VIEW || !$resource) {
+            return $actions;
+        }
+
+        $definition = $this->getResourceDefinition();
+        $back = [ $this->getReturnParameter() => '/' . ltrim($request->path(), '/') ];
+
+        if ($this->hasMethod(Action::EDIT) && $this->canEditModel($request, $resource)) {
+            $actions[] = [
+                'label' => $this->getEditActionLabel($definition),
+                'url' => $this->resourceUrl($request, Action::EDIT, $resource, $this->getEditRouteParameters($request), $back),
+                'style' => 'primary',
+            ];
+        }
+
+        if ($this->hasMethod(Action::DESTROY) && $this->canDestroyModel($request, $resource)) {
+            $actions[] = [
+                'label' => $this->getDestroyActionLabel($definition),
+                'url' => $this->resourceUrl($request, Action::DESTROY, $resource, $this->getDestroyRouteParameters($request), $back),
+                'style' => 'danger',
+            ];
+        }
+
+        return $actions;
+    }
+
+    /**
+     * Where Cancel goes: the return url the page was opened with, else the
+     * resource's show page, else the index.
      * @param Request $request
      * @param RESTResource|null $resource
-     * @return \Symfony\Component\HttpFoundation\Response
-     * @throws \CatLab\Charon\Exceptions\InvalidResourceDefinition
-     * @throws \CatLab\Charon\Exceptions\ResourceException
+     * @return string|null
      */
-    protected function redirectBackToIndex(Request $request, ?RESTResource $resource = null)
+    protected function getCancelUrl(Request $request, ?RESTResource $resource = null): ?string
     {
-        // look for a return parameter
-        $return = $request->session()->get('frontcrud_index_redirect');
-        if ($return) {
-            $request->session()->forget('frontcrud_index_redirect', null);
+        return $this->getReturnUrl($request)
+            ?? ($resource ? $this->safeShowUrl($request, $resource) : null)
+            ?? $this->getIndexUrl($request);
+    }
 
-            // replace any resource identifiers that might be generated
-            if ($resource) {
-                $identifiers = $resource->getProperties()->getIdentifiers()->getValues();
-                foreach ($identifiers as $identifier) {
-                    // Replace {id} with the actual id of the (new/updated) resource..
-                    $return = str_replace(
-                        '{' . $identifier->getField()->getDisplayName() . '}',
-                        $identifier->getValue(),
-                        $return
-                    );
-                }
-            }
+    /**
+     * The return url passed in the query string or the form, if it is a
+     * path on this site; null otherwise. Never a full url, so it can't send
+     * anyone off-site.
+     * @param Request $request
+     * @return string|null
+     */
+    protected function getReturnUrl(Request $request): ?string
+    {
+        $return = $request->input($this->getReturnParameter());
+        if (!is_string($return) || $return === '') {
+            return null;
+        }
 
+        // A relative path only: no scheme, no host, no protocol-relative
+        // "//host" and no backslashes (which browsers read as slashes).
+        if (strpos($return, '\\') !== false || preg_match('/[\x00-\x1f]/', $return)) {
+            return null;
+        }
+
+        $parts = parse_url($return);
+        if ($parts === false || isset($parts['scheme']) || isset($parts['host']) || strpos($return, '//') === 0) {
+            return null;
+        }
+
+        return '/' . ltrim($return, '/');
+    }
+
+    /**
+     * After create or edit: back to the parent's page for a nested
+     * controller opened from there, otherwise the saved resource's show
+     * page, otherwise the return url or the index.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
+    protected function redirectAfterSave(Request $request, RESTResource $resource)
+    {
+        $return = $this->getReturnUrl($request);
+
+        if ($this->parentController && $return !== null) {
             return Redirect::to($return);
         }
 
-        // redirect to default index (if allowed)
-        if ($this->canViewIndex($request)) {
-            $parameters = $this->getIndexRouteParameters($request);
-            return Redirect::to(action('\\' . static::class . '@index', $parameters));
-        } elseif ($resource && $this->isMethodAllowed($request, Action::VIEW, $resource)) {
-            $parameters = [ static::getRouteIdParameterName() => $resource->getIdentifiers()->getValues()[0]->getValue() ];
-            return Redirect::to(action('\\' . static::class . '@show', $parameters));
-        } elseif ($resource && $this->isMethodAllowed($request, Action::EDIT, $resource)) {
-            $parameters = [ static::getRouteIdParameterName() => $resource->getIdentifiers()->getValues()[0]->getValue() ];
-            return Redirect::to(action('\\' . static::class . '@edit', $parameters));
-        } else {
-            return Redirect::to('/');
+        $url = $this->safeShowUrl($request, $resource)
+            ?? $return
+            ?? $this->getIndexUrl($request);
+
+        if ($url === null && $this->isMethodAllowed($request, Action::EDIT, $resource)) {
+            $url = $this->resourceUrl($request, Action::EDIT, $resource, $this->getEditRouteParameters($request));
         }
+
+        return Redirect::to($url ?? '/');
+    }
+
+    /**
+     * After delete: the return url, unless it is one of the deleted
+     * resource's own pages, otherwise the index.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
+    protected function redirectAfterDestroy(Request $request, RESTResource $resource)
+    {
+        $return = $this->getReturnUrl($request);
+
+        if ($return !== null) {
+            $deleted = parse_url($this->resourceUrl($request, Action::VIEW, $resource, $this->getShowRouteParameters($request)), PHP_URL_PATH);
+            $returnPath = parse_url($return, PHP_URL_PATH);
+            if ($deleted && ($returnPath === $deleted || strpos($returnPath, rtrim($deleted, '/') . '/') === 0)) {
+                $return = null;
+            }
+        }
+
+        return Redirect::to($return ?? $this->getIndexUrl($request) ?? '/');
+    }
+
+    /**
+     * Url of this controller's index, or null when it isn't allowed or
+     * can't be built from this request.
+     * @param Request $request
+     * @return string|null
+     */
+    protected function getIndexUrl(Request $request): ?string
+    {
+        if (!$this->hasMethod(Action::INDEX) || !$this->canViewIndex($request)) {
+            return null;
+        }
+
+        try {
+            return action($this->getRawControllerAction('index'), $this->getIndexRouteParameters($request));
+        } catch (UrlGenerationException $e) {
+            return null;
+        } catch (\InvalidArgumentException $e) {
+            // No route for this action.
+            return null;
+        }
+    }
+
+    /**
+     * getShowUrl() without the exception for routes that can't be built.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @return string|null
+     */
+    protected function safeShowUrl(Request $request, RESTResource $resource): ?string
+    {
+        try {
+            return $this->getShowUrl($request, $resource);
+        } catch (UrlGenerationException $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Url of one of this controller's actions for a resource.
+     * @param Request $request
+     * @param string $action
+     * @param RESTResource $resource
+     * @param array $routeParameters
+     * @param array $queryParameters
+     * @return string
+     */
+    protected function resourceUrl(Request $request, string $action, RESTResource $resource, array $routeParameters = [], array $queryParameters = []): string
+    {
+        return (new ResourceAction(
+            $this->getControllerAction($action),
+            $this->getActionText($action, $resource->getResourceDefinition()),
+            static::getRouteIdParameterName()
+        ))
+            ->setRouteParameters($routeParameters)
+            ->setQueryParameters($queryParameters)
+            ->getUrl($resource);
+    }
+
+    /**
+     * The parent front controller, see setParentController().
+     * @return FrontCrudControllerContract|null
+     */
+    protected function getParentController()
+    {
+        if (!$this->parentController) {
+            return null;
+        }
+
+        $className = $this->parentController['controller'];
+        if (!isset($this->childControllers[$className])) {
+            $this->childControllers[$className] = new $className;
+        }
+        return $this->childControllers[$className];
+    }
+
+    /**
+     * A GET request for this controller built from another page's request:
+     * same user, session and route parameters, with this controller's id
+     * parameter set to $id.
+     * @param Request $request
+     * @param mixed $id
+     * @return Request
+     */
+    protected function makeSubRequest(Request $request, $id = null): Request
+    {
+        $route = $request->route() ? clone $request->route() : null;
+        if ($route && $id !== null) {
+            $route->setParameter(static::getRouteIdParameterName(), $id);
+        }
+
+        $subRequest = Request::create($request->getPathInfo(), 'GET');
+        $subRequest->setUserResolver($request->getUserResolver());
+        $subRequest->setRouteResolver(function () use ($route) {
+            return $route;
+        });
+        if ($request->hasSession()) {
+            $subRequest->setLaravelSession($request->session());
+        }
+
+        return $subRequest;
     }
 
     /**
@@ -1480,6 +1850,10 @@ trait FrontCrudController
         }
 
         $user = $request->user();
+        if (!$user) {
+            return false;
+        }
+
         return $user->can($action, $parameters);
     }
 
