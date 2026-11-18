@@ -22,7 +22,18 @@
         @if(count($chrome['actions']))
             <div class="charon-page-actions mb-2">
                 @foreach($chrome['actions'] as $pageAction)
-                    <a href="{{ $pageAction['url'] }}" class="btn btn-{{ $pageAction['style'] ?? 'secondary' }}">{{ $pageAction['label'] }}</a>
+                    @if(!empty($pageAction['items']))
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-{{ $pageAction['style'] ?? 'secondary' }} dropdown-toggle" data-toggle="dropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">{{ $pageAction['label'] }}</button>
+                            <div class="dropdown-menu dropdown-menu-right dropdown-menu-end">
+                                @foreach($pageAction['items'] as $item)
+                                    <a class="dropdown-item" href="{{ $item['url'] }}">{{ $item['label'] }}</a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @else
+                        <a href="{{ $pageAction['url'] }}" class="btn btn-{{ $pageAction['style'] ?? 'secondary' }}">{{ $pageAction['label'] }}</a>
+                    @endif
                 @endforeach
             </div>
         @endif

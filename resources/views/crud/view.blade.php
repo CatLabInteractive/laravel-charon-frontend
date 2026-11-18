@@ -2,6 +2,14 @@
 
 @section('cfcontent')
 
+    @include('charonfrontend::crud.tabs')
+
+    @if($activeTab !== 'details')
+        @if($tabTable)
+            {{ $tabTable->render() }}
+        @endif
+    @else
+
     <table class="table">
     @foreach($resource->getProperties()->getResourceFields()->getValues() as $field)
 
@@ -47,7 +55,15 @@
         @if(!$relationship['multiple'])
             <tr>
                 <th>{{ $relationship['title'] }}</th>
-                <td>@include('table::cell', [ 'cell' => $relationship['cell'] ])</td>
+                <td>
+                    @if(isset($relationship['links']))
+                        @foreach($relationship['links'] as $link)
+                            @if($link['url'])<a href="{{ $link['url'] }}">{{ $link['label'] }}</a>@else{{ $link['label'] }}@endif{{ $loop->last ? '' : ', ' }}
+                        @endforeach
+                    @else
+                        @include('table::cell', [ 'cell' => $relationship['cell'] ])
+                    @endif
+                </td>
             </tr>
         @endif
 
@@ -55,14 +71,7 @@
 
     </table>
 
-    @foreach($relationships as $relationship)
-
-        @if($relationship['multiple'])
-            <h2 class="h4 mt-4">{{ $relationship['title'] }}</h2>
-            {{ $relationship['table']->render() }}
-        @endif
-
-    @endforeach
+    @endif
 
 @endsection
 

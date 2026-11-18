@@ -1,6 +1,7 @@
-# Upgrading to 3.0
+# Page chrome, redirects and tabs (2.0.2, 2.0.3)
 
-3.0 adds page chrome and changes where saving leads. Nothing changes in the
+2.0.2 adds page chrome and changes where saving leads; 2.0.3 turns the show
+page into a hub with tabs. Nothing changes in the
 resource definitions or the API controllers.
 
 ## What changes for an application

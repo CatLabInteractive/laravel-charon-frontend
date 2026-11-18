@@ -125,4 +125,42 @@ class NavigationTest extends TestCase
             'fields' => [ 'name' => 'Sledgehammer' ],
         ])->assertRedirect('http://localhost/admin/categories/' . $category->id);
     }
+
+    public function testOwnedChildListsAreTabsOfTheShowPage()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $category = $this->seedCategory('Tools');
+        $this->seedWidget('Hammer', [ 'category_id' => $category->id ]);
+
+        $show = 'http://localhost/admin/hub-categories/' . $category->id;
+
+        // Details: no widget table, but a tab for them and the app tab.
+        $this->get('/admin/hub-categories/' . $category->id)
+            ->assertStatus(200)
+            ->assertSee('<a class="nav-link active" aria-current="page" href="' . $show . '">Details</a>', false)
+            ->assertSee('<a class="nav-link" href="' . $show . '?tab=widgets">Widgets</a>', false)
+            ->assertSee('<a class="nav-link" href="/admin/hub-categories/' . $category->id . '/history">History</a>', false)
+            ->assertDontSee('Hammer');
+
+        // The Widgets tab: the child table, whose links come back to this tab.
+        $this->get('/admin/hub-categories/' . $category->id . '?tab=widgets')
+            ->assertStatus(200)
+            ->assertSee('<a class="nav-link active" aria-current="page" href="' . $show . '?tab=widgets">Widgets</a>', false)
+            ->assertSee('Hammer')
+            ->assertSee('return=%2Fadmin%2Fhub-categories%2F' . $category->id . '%3Ftab%3Dwidgets', false);
+    }
+
+    public function testAnAppPageShowsTheHubHeader()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $category = $this->seedCategory('Tools');
+
+        $this->get('/admin/hub-categories/' . $category->id . '/history')
+            ->assertStatus(200)
+            ->assertSee('<h1 class="h2 mb-2 mr-3">Tools</h1>', false)
+            ->assertSee('<li class="breadcrumb-item"><a href="http://localhost/admin/hub-categories/' . $category->id . '">Tools</a></li>', false)
+            ->assertSee('<li class="breadcrumb-item active" aria-current="page">History</li>', false)
+            ->assertSee('<a class="nav-link active" aria-current="page" href="/admin/hub-categories/' . $category->id . '/history">History</a>', false)
+            ->assertSee('History goes here.');
+    }
 }
