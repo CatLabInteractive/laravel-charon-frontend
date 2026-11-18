@@ -1,3 +1,40 @@
+# Field errors, actions of the application, lists that leave fields out (2.0.7)
+
+Needs `catlabinteractive/laravel-table` ^1.4.
+
+- **Errors sit under their field.** What the API says about a field of the
+  form (`error.issues.<field>`) is shown under that field's label, as
+  `.invalid-feedback.field-error`, through Laravel's `$errors`
+  (`fields.<name>`), and so also in the summary the form already shows
+  above its fields. Issues about anything else still go in the `message`
+  flash above the page, now without the API's generic first line and
+  escaped. A controller that overrides `handleErrorResponse()` keeps its own
+  behaviour. A custom widget view that does not include `widgets/label`
+  shows field errors itself with `$errors->get($field->getDotName())`.
+- **A delete the API refuses says why.** `destroy()` passes a 4xx JSON
+  response to `handleErrorResponse($response, 'destroy')` instead of
+  reporting "Deleted". Overrides of `destroy()` written for this can go.
+- **The delete page can be worded.** Override `getDestroyConfirmText()` and
+  `getDestroyConfirmLabel()` for a resource whose delete means something
+  else ("Go back to the standard version?"). The `crud/destroy` view gets
+  them as `$question` and `$confirmLabel`.
+- **Row actions of the application.** `addRowAction($label, $url, $options)`
+  in the constructor adds an action to every row: a labelled button by
+  default, or an icon, a menu entry, a form (`method`), with a `confirm`
+  question, a `condition` per row and a `select` in front of its button.
+  `configureRowAction($action, $rowAction)` redraws a built-in View, Edit or
+  Delete action (`$rowAction->setIcon(null)->showLabel()`).
+- **Page actions of the application.** `addPageAction($label, $url, $options)`
+  adds a button after Edit and Delete on the show page; with a `method` it
+  is a form, with `confirm` it asks first.
+- **Lists can leave fields out.** `getHiddenIndexColumns()` and
+  `getHiddenIndexFilters()` return display names that get no column or no
+  filter, for a field that has to be in the index for the code but means
+  nothing to the reader.
+- **Headers are labels.** Column headers and filter labels are the field's
+  `label()`, or its name in words ("Created at" instead of `created_at`).
+  This comes with laravel-table 1.4.
+
 # Uploads on a failed save (2.0.6)
 
 - **`UploadHandler::discard($id)` is new** and must be implemented. A file
