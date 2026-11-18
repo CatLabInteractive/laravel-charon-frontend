@@ -250,4 +250,20 @@ class WidgetsTest extends TestCase
         $request = Request::create('/', 'POST', [ 'fields' => [ 'name' => [ 'date' => '', 'time' => '' ] ] ]);
         $this->assertNull($widget->read($request, $field));
     }
+
+    /**
+     * A single-line input drops line breaks; a value that has them must be
+     * edited in a textarea, or saving the form flattens it.
+     */
+    public function testTextWithLineBreaksIsEditedInATextarea()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $widget = $this->seedWidget("First line\nSecond line");
+
+        $response = $this->get('/admin/widgets/' . $widget->id . '/edit');
+
+        $response->assertStatus(200);
+        $response->assertSee('<textarea id="field-name" name="fields[name]" class="form-control" rows="5">' . "First line\nSecond line" . '</textarea>', false);
+        $response->assertDontSee('<input type="text" id="field-name"', false);
+    }
 }
