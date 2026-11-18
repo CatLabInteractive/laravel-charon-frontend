@@ -62,6 +62,22 @@ class NavigationTest extends TestCase
         $this->assertMatchesRegularExpression('#href="http://localhost/admin/widgets/' . $widget->id . '"\s+class="[^"]*table-action-view#', $html);
     }
 
+    /**
+     * html() fields show as HTML on the show page, cleaned again on the way
+     * out (older values were stored unpurified).
+     */
+    public function testHtmlFieldsRenderAsCleanedHtml()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $widget = $this->seedWidget('Hammer', [ 'description' => '<p>Hallo <strong>daar</strong></p><script>alert(1)</script>' ]);
+
+        $this->get('/admin/widgets/' . $widget->id)
+            ->assertStatus(200)
+            ->assertSee('<div class="charon-html-value"><p>Hallo <strong>daar</strong></p></div>', false)
+            ->assertDontSee('alert(1)', false)
+            ->assertDontSee('&lt;p&gt;', false);
+    }
+
     public function testTheChromeFollowsTheAppLocale()
     {
         $this->actingAsAuthorizedAdmin();
