@@ -28,7 +28,9 @@ into Charon input.
 - **Defaults per type:** string → text input, integer/number → number input,
   boolean → checkbox (with a hidden 0, so unchecking is saved), dateTime →
   date + time, html → textarea with `html-richtext-input`, `enum()` → select,
-  linkable one → select, linkable many → checkboxes. Labels use the
+  linkable one → select, linkable many → checkboxes up to 6 options, else a
+  searchable picker with chips (since 2.1; a plain multiple select without
+  JavaScript, same input names). Labels use the
   definition's `label()`, else the display name in words.
 
 ## Customising
@@ -47,3 +49,6 @@ A widget implements `CatLab\CharonFrontend\Widgets\Widget` (`render`, `read`,
 `isMultipart`); extend `BaseWidget` to render a blade view. `FileWidget`
 takes an `UploadHandler` that stores uploads and lists existing files, so the
 library needs no knowledge of where files live.
+
+`new LinkableWidget(20)` raises the number of options that still render as
+checkboxes, e.g. `->forRelationship(TagResourceDefinition::class, new LinkableWidget(20))`.

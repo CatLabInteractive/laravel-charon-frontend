@@ -5,13 +5,29 @@ namespace CatLab\CharonFrontend\Widgets;
 use Illuminate\Http\Request;
 
 /**
- * Links existing resources: a select for a relationship to one, a list of
- * checkboxes for a relationship to many. The options come from
+ * Links existing resources: a select for a relationship to one. For a
+ * relationship to many, a short list of checkboxes, or for longer lists a
+ * searchable picker that shows the linked items as removable chips (a plain
+ * multiple select without JavaScript). The options come from
  * FrontCrudController::resolveLinkableOptions().
  */
 class LinkableWidget extends BaseWidget
 {
     protected $view = 'charonfrontend::widgets.linkable';
+
+    /**
+     * @var int
+     */
+    protected $checkboxLimit;
+
+    /**
+     * @param int $checkboxLimit Up to this many options, a relationship to many
+     *                           renders as checkboxes; above it, as a picker.
+     */
+    public function __construct(int $checkboxLimit = 6)
+    {
+        $this->checkboxLimit = $checkboxLimit;
+    }
 
     protected function getViewData(FormField $field): array
     {
@@ -24,6 +40,7 @@ class LinkableWidget extends BaseWidget
         }
 
         return [
+            'picker' => $field->isMultiple() && count($field->getOptions()) > $this->checkboxLimit,
             'selected' => array_map('strval', array_filter($selected, function ($v) {
                 return $v !== null && $v !== '';
             })),
