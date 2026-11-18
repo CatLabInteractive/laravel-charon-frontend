@@ -233,6 +233,11 @@ trait FrontCrudController
      */
     public function store(Request $request)
     {
+        // Widgets may store uploads while reading the input; check first.
+        if (!$this->isMethodAllowed($request, Action::CREATE)) {
+            abort(403);
+        }
+
         $newRequest = $this->transformFormInput($request, Action::CREATE);
         $response = $this->dispatchToApi(Action::CREATE, $newRequest);
 
@@ -376,6 +381,15 @@ trait FrontCrudController
      */
     public function update(Request $request, $id)
     {
+        // Widgets may store uploads while reading the input; check first.
+        $current = $this->dispatchToApi(Action::VIEW, $request);
+        if (!($current instanceof ResourceResponse)) {
+            return $current;
+        }
+        if (!$this->isMethodAllowed($request, Action::EDIT, $current->getResource())) {
+            abort(403);
+        }
+
         $apiRequest = $this->transformFormInput($request, Action::EDIT);
         $response = $this->dispatchToApi(Action::EDIT, $apiRequest);
 
@@ -1033,7 +1047,11 @@ trait FrontCrudController
         $multipart = false;
         foreach ($this->getFormFields($action, $resource) as $formField) {
             $widget = $this->widgets()->resolve($formField->getField());
-            $formField->setOptions($this->resolveFieldOptions($request, $formField, $widget));
+            $options = $this->resolveFieldOptions($request, $formField, $widget);
+            if ($resource && $formField->getField() instanceof RelationshipField) {
+                $options = $this->withLinkedOptions($request, $resource, $formField->getField(), $options);
+            }
+            $formField->setOptions($options);
 
             $formFields[] = [
                 'field' => $formField,
@@ -1224,6 +1242,42 @@ trait FrontCrudController
         }
 
         return [];
+    }
+
+    /**
+     * Add the resources a relationship links to now, when the option list
+     * doesn't offer them (beyond the option limit, another organisation,
+     * ...). Without them, saving the form would silently unlink them.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @param RelationshipField $field
+     * @param array $options
+     * @return array
+     */
+    protected function withLinkedOptions(Request $request, RESTResource $resource, RelationshipField $field, array $options): array
+    {
+        $property = $resource->getProperties()->getProperty($field);
+        if ($property instanceof ChildValue) {
+            $linked = $property->getChild() ? [ $property->getChild() ] : [];
+        } elseif ($property instanceof ChildrenValue) {
+            $linked = $property->getChildren();
+        } else {
+            return $options;
+        }
+
+        $missing = [];
+        foreach ($linked as $child) {
+            $identifiers = $child->getIdentifiers()->getValues();
+            if (!count($identifiers)) {
+                continue;
+            }
+            $id = $identifiers[0]->getValue();
+            if (!array_key_exists($id, $options)) {
+                $missing[$id] = $this->getRelatedLabel($request, $child);
+            }
+        }
+
+        return $missing + $options;
     }
 
     /**
@@ -1927,7 +1981,13 @@ trait FrontCrudController
         $return = $this->getReturnUrl($request);
 
         if ($return !== null) {
-            $deleted = parse_url($this->resourceUrl($request, Action::VIEW, $resource, $this->getShowRouteParameters($request)), PHP_URL_PATH);
+            try {
+                $deleted = parse_url($this->resourceUrl($request, Action::VIEW, $resource, $this->getShowRouteParameters($request)), PHP_URL_PATH);
+            } catch (\Exception $e) {
+                // No show page to compare with: only the index is safe.
+                $deleted = null;
+                $return = null;
+            }
             $returnPath = parse_url($return, PHP_URL_PATH);
             if ($deleted && ($returnPath === $deleted || strpos($returnPath, rtrim($deleted, '/') . '/') === 0)) {
                 $return = null;

@@ -11,6 +11,22 @@ Nothing to change in an application; both are additions.
   their text from `charonfrontend::crud` (English and Dutch included), so
   they follow the app locale. Publish the `charonfrontend-lang` group to
   change the wording.
+- **Linked records stay linked.** A relationship's current records are
+  always among a form's options, also when the option list doesn't offer
+  them (beyond its limit, another organisation's). Before, saving such a
+  form silently unlinked them.
+- **Saving checks permission before reading the input**, so a refused save
+  no longer stores its uploads. `store()` checks `isMethodAllowed(create)`,
+  `update()` loads the resource and checks `isMethodAllowed(edit)`.
+- An unreadable date is a validation error instead of a 500.
+
+**Custom show views (since 2.0.3).** A view that overrides `crud/view`
+and loops over `$relationships` calling `['table']->render()` breaks:
+`$relationships` now only holds `cell` (to one) and `links` (linked to
+many) rows. Owned child lists are tabs: `$tabs` (key => label, url,
+active), `$activeTab` and `$tabTable`, the table of the active child tab.
+Controllers implementing `FrontCrudControllerContract` without the trait
+need `getLinkableOptions()` (2.0.0) and `getBreadcrumbTrail()` (2.0.2).
 
 # Page chrome, redirects and tabs (2.0.2, 2.0.3)
 

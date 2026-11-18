@@ -26,4 +26,7 @@ return [
     'pick_existing' => 'or pick an existing one',
     'none' => '(none)',
     'remove_field' => 'Remove :field',
+    'invalid_date' => ':field: this is not a valid date.',
+    'file_not_accepted' => ':field: this type of file is not accepted.',
+    'time_of' => ':field (time)',
 ];

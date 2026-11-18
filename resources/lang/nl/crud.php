@@ -26,4 +26,7 @@ return [
     'pick_existing' => 'of een bestaand kiezen',
     'none' => '(geen)',
     'remove_field' => ':field verwijderen',
+    'invalid_date' => ':field: dit is geen geldige datum.',
+    'file_not_accepted' => ':field: dit type bestand is niet toegelaten.',
+    'time_of' => ':field (uur)',
 ];
