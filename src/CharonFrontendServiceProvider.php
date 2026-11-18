@@ -18,10 +18,15 @@ class CharonFrontendServiceProvider extends ServiceProvider
     public function boot()
     {
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'charonfrontend');
+        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'charonfrontend');
 
         $this->publishes([
             __DIR__.'/../resources/views' => resource_path('views/vendor/charonfrontend')
         ]);
+
+        $this->publishes([
+            __DIR__.'/../resources/lang' => $this->app->langPath('vendor/charonfrontend')
+        ], 'charonfrontend-lang');
     }
 
     /**

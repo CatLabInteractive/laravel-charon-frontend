@@ -22,9 +22,9 @@
         @include('charonfrontend::crud.form-fields')
 
         <div class="form-group">
-            <input type="submit" value="{{ ucfirst($verb) }}" class="btn btn-primary">
+            <input type="submit" value="{{ __('charonfrontend::crud.submit_' . $verb) }}" class="btn btn-primary">
             @if($cancel)
-                <a href="{{ $cancel }}" class="btn btn-link">Cancel</a>
+                <a href="{{ $cancel }}" class="btn btn-link">{{ __('charonfrontend::crud.cancel') }}</a>
             @endif
         </div>
 

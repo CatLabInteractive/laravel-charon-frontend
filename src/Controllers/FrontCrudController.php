@@ -125,6 +125,11 @@ trait FrontCrudController
     private $appTabs = [];
 
     /**
+     * @var array[] [ [ 'label' => string, 'fields' => string[] ] ]
+     */
+    private $fieldGroups = [];
+
+    /**
      * The front controller this one is nested under, see setParentController().
      * @var array|null [ 'controller' => class name, 'parameter' => route parameter ]
      */
@@ -1054,6 +1059,7 @@ trait FrontCrudController
 
         return $this->createFormView($action, $this->getView('form'), [
             'formFields' => $formFields,
+            'formSections' => $this->groupFormFields($formFields),
             'multipart' => $multipart,
             'action' => $this->action($processmethod),
             'resource' => $resource,
@@ -1065,6 +1071,76 @@ trait FrontCrudController
             'returnParameter' => $this->getReturnParameter(),
             'return' => $this->getReturnUrl($request),
         ]);
+    }
+
+    /**
+     * Show a set of fields together under a heading on create and edit
+     * forms, e.g. $this->addFieldGroup('Tickets', [ 'vat_percentage', 'team_size' ]).
+     * A group sits where the first of its fields would be; fields in no
+     * group keep their definition order. Names are field display names.
+     * @param string $label
+     * @param string[] $fieldNames
+     * @return $this
+     */
+    protected function addFieldGroup(string $label, array $fieldNames)
+    {
+        $this->fieldGroups[] = [ 'label' => $label, 'fields' => array_values($fieldNames) ];
+        return $this;
+    }
+
+    /**
+     * Split the form fields into sections: runs of ungrouped fields (label
+     * null) and the groups registered with addFieldGroup(). Groups whose
+     * fields aren't on this form are left out.
+     * @param array $formFields [ [ 'field' => FormField, 'widget' => Widget ] ]
+     * @return array [ [ 'label' => ?string, 'fields' => array ] ]
+     */
+    protected function groupFormFields(array $formFields): array
+    {
+        $groupOf = [];
+        foreach ($this->fieldGroups as $index => $group) {
+            foreach ($group['fields'] as $name) {
+                if (!isset($groupOf[$name])) {
+                    $groupOf[$name] = $index;
+                }
+            }
+        }
+
+        $byName = [];
+        foreach ($formFields as $formField) {
+            $byName[$formField['field']->getField()->getDisplayName()] = $formField;
+        }
+
+        $sections = [];
+        $placed = [];
+        foreach ($formFields as $formField) {
+            $name = $formField['field']->getField()->getDisplayName();
+            if (!isset($groupOf[$name])) {
+                $last = count($sections) - 1;
+                if ($last >= 0 && $sections[$last]['label'] === null) {
+                    $sections[$last]['fields'][] = $formField;
+                } else {
+                    $sections[] = [ 'label' => null, 'fields' => [ $formField ] ];
+                }
+                continue;
+            }
+
+            $index = $groupOf[$name];
+            if (isset($placed[$index])) {
+                continue;
+            }
+            $placed[$index] = true;
+
+            $fields = [];
+            foreach ($this->fieldGroups[$index]['fields'] as $groupField) {
+                if (isset($byName[$groupField]) && $groupOf[$groupField] === $index) {
+                    $fields[] = $byName[$groupField];
+                }
+            }
+            $sections[] = [ 'label' => $this->fieldGroups[$index]['label'], 'fields' => $fields ];
+        }
+
+        return $sections;
     }
 
     /**
@@ -1308,7 +1384,7 @@ trait FrontCrudController
      */
     protected function afterStore(Request $request, RESTResource $newResource)
     {
-        Session::flash('message', Str::ucfirst($this->getEntityLabel()) . ' created.');
+        Session::flash('message', __('charonfrontend::crud.created', [ 'entity' => $this->getEntityLabel() ]));
 
         return $this->redirectAfterSave($request, $newResource);
     }
@@ -1323,7 +1399,7 @@ trait FrontCrudController
      */
     protected function afterUpdate(Request $request, RESTResource $resource)
     {
-        Session::flash('message', 'Saved.');
+        Session::flash('message', __('charonfrontend::crud.saved'));
 
         return $this->redirectAfterSave($request, $resource);
     }
@@ -1338,7 +1414,7 @@ trait FrontCrudController
      */
     protected function afterDestroy(Request $request, RESTResource $resource)
     {
-        Session::flash('message', 'Deleted.');
+        Session::flash('message', __('charonfrontend::crud.deleted'));
 
         return $this->redirectAfterDestroy($request, $resource);
     }
@@ -1431,7 +1507,7 @@ trait FrontCrudController
         };
 
         $tabs = [
-            'details' => [ 'label' => 'Details', 'url' => $tabUrl('details') ],
+            'details' => [ 'label' => __('charonfrontend::crud.details'), 'url' => $tabUrl('details') ],
         ];
 
         foreach ($childTabs as $key => $tab) {
@@ -1574,7 +1650,7 @@ trait FrontCrudController
                 break;
 
             case Action::CREATE:
-                $title = 'New ' . $this->getEntityLabel();
+                $title = __('charonfrontend::crud.new_entity', [ 'entity' => $this->getEntityLabel() ]);
                 break;
 
             default:
@@ -1604,7 +1680,17 @@ trait FrontCrudController
      */
     protected function getEntityLabel(): string
     {
-        return str_replace('_', ' ', Str::snake($this->getResourceDefinition()->getEntityName()));
+        return $this->entityLabelOf($this->getResourceDefinition());
+    }
+
+    /**
+     * A definition's entity name in words, lower case.
+     * @param ResourceDefinition $resourceDefinition
+     * @return string
+     */
+    protected function entityLabelOf(ResourceDefinition $resourceDefinition): string
+    {
+        return str_replace('_', ' ', Str::snake($resourceDefinition->getEntityName()));
     }
 
     /**
@@ -1647,7 +1733,7 @@ trait FrontCrudController
 
         switch ($action) {
             case Action::CREATE:
-                $crumbs[] = [ 'label' => 'New', 'url' => null ];
+                $crumbs[] = [ 'label' => __('charonfrontend::crud.new'), 'url' => null ];
                 break;
 
             case Action::EDIT:
@@ -2108,7 +2194,7 @@ trait FrontCrudController
      */
     protected function getCreateActionLabel(ResourceDefinition $resourceDefinition)
     {
-        return 'Create ' . $resourceDefinition->getEntityName();
+        return __('charonfrontend::crud.create_entity', [ 'entity' => $this->entityLabelOf($resourceDefinition) ]);
     }
 
     /**
@@ -2117,7 +2203,7 @@ trait FrontCrudController
      */
     protected function getEditActionLabel(ResourceDefinition $resourceDefinition)
     {
-        return 'Edit';
+        return __('charonfrontend::crud.edit');
     }
 
     /**
@@ -2126,7 +2212,7 @@ trait FrontCrudController
      */
     protected function getViewActionLabel(ResourceDefinition $resourceDefinition)
     {
-        return 'View';
+        return __('charonfrontend::crud.view');
     }
 
     /**
@@ -2135,6 +2221,6 @@ trait FrontCrudController
      */
     protected function getDestroyActionLabel(ResourceDefinition $resourceDefinition)
     {
-        return 'Delete';
+        return __('charonfrontend::crud.delete');
     }
 }

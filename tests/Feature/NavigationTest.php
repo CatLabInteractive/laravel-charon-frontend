@@ -44,6 +44,45 @@ class NavigationTest extends TestCase
             ->assertSee('<li class="breadcrumb-item active" aria-current="page">Edit</li>', false);
     }
 
+    public function testTheChromeFollowsTheAppLocale()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $widget = $this->seedWidget('Hammer');
+        $this->app->setLocale('nl');
+
+        $this->get('/admin/widgets/' . $widget->id)
+            ->assertSee('class="btn btn-primary">Bewerken</a>', false)
+            ->assertSee('class="btn btn-danger">Verwijderen</a>', false);
+
+        $this->get('/admin/form-widgets/' . $widget->id . '/edit')
+            ->assertSee('Opslaan', false)
+            ->assertSee('class="btn btn-link">Annuleren</a>', false);
+    }
+
+    public function testFieldGroupsRenderAsFieldsetsWhereTheirFirstFieldWas()
+    {
+        $this->actingAsAuthorizedAdmin();
+
+        $html = $this->get('/admin/grouped-widgets/create')
+            ->assertStatus(200)
+            ->assertSee('<legend class="h5 w-auto px-2 mb-0">State</legend>', false)
+            ->assertDontSee('Nothing</legend>', false)
+            ->getContent();
+
+        $name = strpos($html, 'name="fields[name]"');
+        $legend = strpos($html, 'State</legend>');
+        $active = strpos($html, 'name="fields[active]"');
+        $status = strpos($html, 'name="fields[status]"');
+        $end = strpos($html, '</fieldset>');
+        $description = strpos($html, 'name="fields[description]"');
+
+        $this->assertNotFalse($name);
+        $this->assertNotFalse($description);
+        // name, then the group (in group order: active, status), then the rest.
+        $this->assertTrue($name < $legend && $legend < $active && $active < $status && $status < $end && $end < $description);
+        $this->assertSame(1, substr_count($html, 'name="fields[status]"'));
+    }
+
     public function testTheFormCarriesTheReturnUrlAndCancelsToIt()
     {
         $this->actingAsAuthorizedAdmin();

@@ -17,10 +17,10 @@
             <input type="hidden" name="{{ $returnParameter }}" value="{{ $return }}">
         @endif
 
-        <p>Are you sure you want to remove this?</p>
+        <p>{{ __('charonfrontend::crud.confirm_delete') }}</p>
 
-        <input type="submit" value="Yes" class="btn btn-danger">
-        <a href="{{ $back }}" class="btn btn-secondary">No</a>
+        <input type="submit" value="{{ __('charonfrontend::crud.yes') }}" class="btn btn-danger">
+        <a href="{{ $back }}" class="btn btn-secondary">{{ __('charonfrontend::crud.no') }}</a>
 
     </form>
 

@@ -36,7 +36,7 @@
         input.type = 'text';
         input.className = 'form-control';
         input.id = select.id + '-search';
-        input.placeholder = 'Type to add…';
+        input.placeholder = select.dataset.charonPickerPlaceholder || 'Type to add…';
         input.autocomplete = 'off';
         input.setAttribute('role', 'combobox');
         input.setAttribute('aria-expanded', 'false');
@@ -75,7 +75,7 @@
                 var remove = document.createElement('button');
                 remove.type = 'button';
                 remove.innerHTML = '&times;';
-                remove.setAttribute('aria-label', 'Remove ' + option.text);
+                remove.setAttribute('aria-label', (select.dataset.charonPickerRemove || 'Remove :item').replace(':item', option.text));
                 remove.addEventListener('click', function () {
                     option.selected = false;
                     renderChips();
@@ -102,7 +102,7 @@
             if (!matches.length) {
                 var none = document.createElement('li');
                 none.className = 'charon-picker-none';
-                none.textContent = 'No matches';
+                none.textContent = select.dataset.charonPickerEmpty || 'No matches';
                 menu.appendChild(none);
             }
             matches.forEach(function (option, index) {

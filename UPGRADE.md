@@ -1,3 +1,17 @@
+# Field groups and translated labels (2.0.4)
+
+Nothing to change in an application; both are additions.
+
+- **Field groups.** `addFieldGroup('Tickets', [ 'vat_percentage', 'team_size' ])`
+  in a front controller's constructor shows those fields together in a
+  fieldset on create and edit forms. A group sits where its first field
+  would be; other fields keep their definition order. Views that include
+  `crud/form-fields` without `$formSections` still render a flat list.
+- **Translated labels.** The chrome, forms, delete page and widgets read
+  their text from `charonfrontend::crud` (English and Dutch included), so
+  they follow the app locale. Publish the `charonfrontend-lang` group to
+  change the wording.
+
 # Page chrome, redirects and tabs (2.0.2, 2.0.3)
 
 2.0.2 adds page chrome and changes where saving leads; 2.0.3 turns the show

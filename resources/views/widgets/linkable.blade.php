@@ -10,7 +10,7 @@
             <input type="hidden" name="{{ $field->getInputName('[ids][]') }}" value="">
 
             @if($picker)
-                <select class="form-control" id="{{ $field->getId() }}" name="{{ $field->getInputName('[ids][]') }}" multiple size="8" data-charon-picker>
+                <select class="form-control" id="{{ $field->getId() }}" name="{{ $field->getInputName('[ids][]') }}" multiple size="8" data-charon-picker data-charon-picker-placeholder="{{ __('charonfrontend::crud.type_to_add') }}" data-charon-picker-remove="{{ __('charonfrontend::crud.remove_item') }}" data-charon-picker-empty="{{ __('charonfrontend::crud.no_matches') }}">
                     @foreach($field->getOptions() as $value => $display)
                         <option value="{{ $value }}"{{ in_array((string) $value, $selected, true) ? ' selected' : '' }}>{{ $display }}</option>
                     @endforeach
@@ -24,7 +24,7 @@
                         <label class="form-check-label" for="{{ $field->getId((string) $value) }}">{{ $display }}</label>
                     </div>
                 @empty
-                    <p class="text-muted mb-0">Nothing to choose from.</p>
+                    <p class="text-muted mb-0">{{ __('charonfrontend::crud.nothing_to_choose') }}</p>
                 @endforelse
             @endif
         </fieldset>

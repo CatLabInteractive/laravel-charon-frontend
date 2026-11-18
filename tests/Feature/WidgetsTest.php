@@ -255,7 +255,7 @@ class WidgetsTest extends TestCase
         $html = (new LinkableWidget())->render($field);
 
         $this->assertStringContainsString('<input type="hidden" name="fields[tags][ids][]" value="">', $html);
-        $this->assertStringContainsString('<select class="form-control" id="field-tags" name="fields[tags][ids][]" multiple size="8" data-charon-picker>', $html);
+        $this->assertStringContainsString('<select class="form-control" id="field-tags" name="fields[tags][ids][]" multiple size="8" data-charon-picker data-charon-picker-placeholder="Type to add…"', $html);
         $this->assertStringContainsString('<option value="6">Tag 6</option>', $html);
         $this->assertStringNotContainsString('type="checkbox"', $html);
         $this->assertStringContainsString('charon-picker', $html);
