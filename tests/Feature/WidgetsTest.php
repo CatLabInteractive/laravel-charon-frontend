@@ -239,6 +239,33 @@ class WidgetsTest extends TestCase
         $this->assertStringContainsString('>Garden</label>', $html);
     }
 
+    /**
+     * Long option lists (people, ...) become a searchable picker instead of
+     * a wall of checkboxes; underneath it's a multiple select with the same
+     * input name, so reading the input doesn't change.
+     */
+    public function testLinkableWidgetRendersAPickerForLongLists()
+    {
+        $options = [];
+        for ($i = 1; $i <= 7; $i++) {
+            $options[$i] = 'Tag ' . $i;
+        }
+        $field = (new FormField($this->fieldOf('tags')))->setOptions($options);
+
+        $html = (new LinkableWidget())->render($field);
+
+        $this->assertStringContainsString('<input type="hidden" name="fields[tags][ids][]" value="">', $html);
+        $this->assertStringContainsString('<select class="form-control" id="field-tags" name="fields[tags][ids][]" multiple size="8" data-charon-picker>', $html);
+        $this->assertStringContainsString('<option value="6">Tag 6</option>', $html);
+        $this->assertStringNotContainsString('type="checkbox"', $html);
+        $this->assertStringContainsString('charon-picker', $html);
+
+        // Up to the limit, checkboxes.
+        $html = (new LinkableWidget(7))->render($field);
+        $this->assertStringContainsString('type="checkbox"', $html);
+        $this->assertStringNotContainsString('data-charon-picker', $html);
+    }
+
     public function testDateTimeWidgetReadsDateAndTime()
     {
         $widget = new DateTimeWidget();
