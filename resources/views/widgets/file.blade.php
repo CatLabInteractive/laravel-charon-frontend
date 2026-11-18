@@ -4,7 +4,7 @@
     <div class="charon-file-field-body" style="display: flex; align-items: flex-start;">
         <div class="charon-file-field-preview" style="flex: 0 0 160px; margin-right: 1rem; padding: .25rem; border: 1px solid #dee2e6; border-radius: .25rem; text-align: center;">
             <img src="{{ $previewUrl }}" alt="" style="max-width: 100%; max-height: 200px;" data-charon-file-preview{!! $previewUrl ? '' : ' hidden' !!}>
-            <span class="text-muted small d-block py-4" data-charon-file-empty{!! $previewUrl ? ' hidden' : '' !!}>No file</span>
+            <span class="text-muted small py-4" style="display: block;" data-charon-file-empty{!! $previewUrl ? ' hidden' : '' !!}>No file</span>
         </div>
 
         <div class="charon-file-field-controls" style="flex: 1 1 auto; min-width: 0;">
