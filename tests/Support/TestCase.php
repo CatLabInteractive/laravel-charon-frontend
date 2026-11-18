@@ -16,6 +16,7 @@ use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use Tests\Support\Controllers\CategoryApiController;
 use Tests\Support\Controllers\CategoryFrontController;
 use Tests\Support\Controllers\CategoryWidgetFrontController;
+use Tests\Support\Controllers\HubCategoryFrontController;
 use Tests\Support\Controllers\FormWidgetFrontController;
 use Tests\Support\Controllers\UploadWidgetFrontController;
 use Tests\Support\Controllers\LabelledWidgetFrontController;
@@ -140,6 +141,8 @@ abstract class TestCase extends OrchestraTestCase
             FormWidgetFrontController::routes('/admin/form-widgets', FormWidgetFrontController::class);
             UploadWidgetFrontController::routes('/admin/upload-widgets', UploadWidgetFrontController::class);
             CategoryWidgetFrontController::routes('/admin/categories/{category}/widgets', CategoryWidgetFrontController::class);
+            HubCategoryFrontController::routes('/admin/hub-categories', HubCategoryFrontController::class);
+            Route::get('/admin/hub-categories/{category}/history', [ HubCategoryFrontController::class, 'history' ]);
         });
     }
 

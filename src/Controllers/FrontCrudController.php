@@ -119,6 +119,12 @@ trait FrontCrudController
     private $widgetRegistry;
 
     /**
+     * Tabs registered with addTab().
+     * @var array
+     */
+    private $appTabs = [];
+
+    /**
      * The front controller this one is nested under, see setParentController().
      * @var array|null [ 'controller' => class name, 'parameter' => route parameter ]
      */
@@ -257,10 +263,14 @@ trait FrontCrudController
             'chrome' => $this->getPageChrome($request, Action::VIEW, $resource),
         ];
 
-        // Look for relationships and build tables
+        // Single relationships and linked many-to-many ones (producers,
+        // tags, ...) are rows of the details tab; owned child lists with a
+        // child controller (ticket categories, dates, ...) get a tab each.
+        $childTabs = [];
         foreach ($resource->getProperties()->getRelationships()->getValues() as $relationship) {
 
-            $childResourceDefinition = $relationship->getField()->getChildResourceDefinition();
+            $field = $relationship->getField();
+            $childResourceDefinition = $field->getChildResourceDefinition();
 
             if ($relationship instanceof ChildValue) {
                 // A single related resource is one row in the details table:
@@ -280,7 +290,7 @@ trait FrontCrudController
                 $data['relationships'][] = [
                     'multiple' => false,
                     'property' => $relationship,
-                    'title' => (new FormField($relationship->getField()))->getLabel(),
+                    'title' => (new FormField($field))->getLabel(),
                     'cell' => $table->makeCell($relationship)
                 ];
                 continue;
@@ -290,26 +300,51 @@ trait FrontCrudController
                 continue;
             }
 
+            if ($field->canLinkExistingEntities(new Context(Action::EDIT, []))) {
+                $links = [];
+                foreach ($relationship->getChildren() as $child) {
+                    $links[] = [
+                        'label' => $this->getRelatedLabel($request, $child),
+                        'url' => $this->getRelatedResourceUrl($request, $child),
+                    ];
+                }
+
+                $data['relationships'][] = [
+                    'multiple' => false,
+                    'property' => $relationship,
+                    'title' => (new FormField($field))->getLabel(),
+                    'links' => $links,
+                ];
+                continue;
+            }
+
             $childController = $this->getChildController($childResourceDefinition);
             if (!$childController) {
                 continue;
             }
 
-            $table = $childController->getTableForResourceCollection(
-                $request,
-                $relationship->getChildren(),
-                $childResourceDefinition,
-                $context
-            );
-
-            $data['relationships'][] = [
-                'multiple' => true,
-                'property' => $relationship,
-                'title' => (new FormField($relationship->getField()))->getLabel(),
-                'table' => $table
+            $childTabs[$field->getDisplayName()] = [
+                'label' => (new FormField($field))->getLabel(),
+                'build' => function () use ($childController, $request, $relationship, $childResourceDefinition, $context) {
+                    return $childController->getTableForResourceCollection(
+                        $request,
+                        $relationship->getChildren(),
+                        $childResourceDefinition,
+                        $context
+                    );
+                },
             ];
-
         }
+
+        $tabs = $this->getShowTabs($request, $resource, $childTabs);
+        $active = $this->getActiveTab($request, $tabs);
+        foreach ($tabs as $key => $tab) {
+            $tabs[$key]['active'] = $key === $active;
+        }
+
+        $data['tabs'] = count($tabs) > 1 ? $tabs : [];
+        $data['activeTab'] = $active;
+        $data['tabTable'] = isset($childTabs[$active]) ? call_user_func($childTabs[$active]['build']) : null;
 
         return view($view, $data);
     }
@@ -681,7 +716,7 @@ trait FrontCrudController
         $parameters = [];
 
         // Add a return to parameter
-        $parameters[$this->getReturnParameter()] = $request->path();
+        $parameters[$this->getReturnParameter()] = $this->getCurrentPath($request);
 
         return $parameters;
     }
@@ -704,7 +739,7 @@ trait FrontCrudController
         $parameters = [];
 
         // Add a return to parameter
-        $parameters[$this->getReturnParameter()] = $request->path();
+        $parameters[$this->getReturnParameter()] = $this->getCurrentPath($request);
 
         return $parameters;
     }
@@ -727,7 +762,7 @@ trait FrontCrudController
         $parameters = [];
 
         // Add a return to parameter
-        $parameters[$this->getReturnParameter()] = $request->path();
+        $parameters[$this->getReturnParameter()] = $this->getCurrentPath($request);
 
         return $parameters;
     }
@@ -748,6 +783,19 @@ trait FrontCrudController
     protected function getShowQueryParameters(Request $request)
     {
         return [];
+    }
+
+    /**
+     * Path and query string of the current page, to come back to.
+     * @param Request $request
+     * @return string
+     */
+    protected function getCurrentPath(Request $request): string
+    {
+        $query = $request->query();
+        unset($query[$this->getReturnParameter()]);
+
+        return '/' . ltrim($request->path(), '/') . (count($query) ? '?' . http_build_query($query) : '');
     }
 
     /**
@@ -1347,6 +1395,151 @@ trait FrontCrudController
     }
 
     /**
+     * Add a tab to this controller's show pages that links to a page of the
+     * app, e.g. an event's waiting list:
+     * $this->addTab('waitinglist', 'Waiting list', function (Request $request, RESTResource $event) {
+     *     return action('Admin\\WaitingListController@index', [ 'event' => $event->getIdentifiers()->getValues()[0]->getValue() ]);
+     * });
+     * That page shows the same header and tabs with getHubChrome().
+     * @param string $key
+     * @param string $label
+     * @param callable $url function (Request, RESTResource): ?string; null hides the tab.
+     * @return $this
+     */
+    protected function addTab(string $key, string $label, callable $url)
+    {
+        $this->appTabs[$key] = [ 'label' => $label, 'url' => $url ];
+        return $this;
+    }
+
+    /**
+     * The tabs of a show page: Details, one per owned child list, then the
+     * app's tabs. Keyed by tab key; each has a label and a url.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @param array $childTabs [ key => [ 'label' => string ] ]
+     * @return array
+     */
+    protected function getShowTabs(Request $request, RESTResource $resource, array $childTabs = []): array
+    {
+        $showUrl = $this->safeShowUrl($request, $resource);
+        $tabUrl = function (string $key) use ($showUrl) {
+            if ($showUrl === null) {
+                return null;
+            }
+            return $key === 'details' ? $showUrl : $showUrl . (strpos($showUrl, '?') === false ? '?' : '&') . 'tab=' . urlencode($key);
+        };
+
+        $tabs = [
+            'details' => [ 'label' => 'Details', 'url' => $tabUrl('details') ],
+        ];
+
+        foreach ($childTabs as $key => $tab) {
+            $tabs[$key] = [ 'label' => $tab['label'], 'url' => $tabUrl($key) ];
+        }
+
+        foreach ($this->appTabs as $key => $tab) {
+            $url = call_user_func($tab['url'], $request, $resource);
+            if ($url !== null) {
+                $tabs[$key] = [ 'label' => $tab['label'], 'url' => $url ];
+            }
+        }
+
+        return $tabs;
+    }
+
+    /**
+     * @param Request $request
+     * @param array $tabs
+     * @return string
+     */
+    protected function getActiveTab(Request $request, array $tabs): string
+    {
+        $tab = $request->query('tab');
+        return is_string($tab) && isset($tabs[$tab]) && !isset($this->appTabs[$tab]) ? $tab : 'details';
+    }
+
+    /**
+     * Header and tabs of one of this controller's resources, for an app page
+     * that is one of its tabs (see addTab()): the resource's title, its
+     * breadcrumbs plus the tab, its actions, and the tabs with $tab active.
+     * Render it with @include('charonfrontend::crud.hub-header', [ 'hub' => $hub ]) when it isn't null.
+     * @param Request $request The app page's request.
+     * @param mixed $id
+     * @param string $tab
+     * @return array|null [ 'chrome' => array, 'tabs' => array ], or null when the
+     *                    user may not view the resource here.
+     */
+    public function getHubChrome(Request $request, $id, string $tab): ?array
+    {
+        $viewRequest = $this->makeSubRequest($request, $id);
+        try {
+            $response = $this->dispatchToApi(Action::VIEW, $viewRequest);
+        } catch (AuthorizationException $e) {
+            return null;
+        } catch (HttpExceptionInterface $e) {
+            if ($e->getStatusCode() === 403 || $e->getStatusCode() === 404) {
+                return null;
+            }
+            throw $e;
+        }
+
+        $resource = $response instanceof ResourceResponse ? $response->getResource() : null;
+        if (!($resource instanceof RESTResource)) {
+            return null;
+        }
+
+        $childTabs = [];
+        foreach ($resource->getProperties()->getRelationships()->getValues() as $relationship) {
+            $field = $relationship->getField();
+            if (!($relationship instanceof ChildrenValue)
+                || $field->canLinkExistingEntities(new Context(Action::EDIT, []))
+                || !$this->getChildController($field->getChildResourceDefinition())
+            ) {
+                continue;
+            }
+            $childTabs[$field->getDisplayName()] = [ 'label' => (new FormField($field))->getLabel() ];
+        }
+
+        $tabs = $this->getShowTabs($viewRequest, $resource, $childTabs);
+        foreach ($tabs as $key => $value) {
+            $tabs[$key]['active'] = $key === $tab;
+        }
+
+        $chrome = $this->getPageChrome($viewRequest, Action::VIEW, $resource);
+        $last = count($chrome['breadcrumbs']) - 1;
+        $chrome['breadcrumbs'][$last]['url'] = $this->safeShowUrl($viewRequest, $resource);
+        $chrome['breadcrumbs'][] = [ 'label' => $tabs[$tab]['label'] ?? Str::ucfirst($tab), 'url' => null ];
+
+        return [ 'chrome' => $chrome, 'tabs' => $tabs ];
+    }
+
+    /**
+     * Label of a related resource: getRelatedResourceLabel(), else a
+     * name-like field, else its identifier.
+     * @param Request $request
+     * @param RESTResource $related
+     * @return string
+     */
+    protected function getRelatedLabel(Request $request, RESTResource $related): string
+    {
+        $label = $this->getRelatedResourceLabel($request, $related);
+        if ($label !== null) {
+            return $label;
+        }
+
+        $values = $related->toArray();
+        foreach ([ 'name', 'title', 'label' ] as $candidate) {
+            if (isset($values[$candidate]) && is_scalar($values[$candidate]) && $values[$candidate] !== '') {
+                return (string) $values[$candidate];
+            }
+        }
+
+        $identifiers = $related->getIdentifiers()->getValues();
+        return count($identifiers) ? '#' . $identifiers[0]->getValue() : '';
+    }
+
+    /**
      * Nest this controller under another front controller, e.g. ticket
      * categories under events at /events/{event}/ticketCategories: the
      * breadcrumbs then start with the parent's ("Events › Quiz night"), and
@@ -1546,7 +1739,7 @@ trait FrontCrudController
         }
 
         $definition = $this->getResourceDefinition();
-        $back = [ $this->getReturnParameter() => '/' . ltrim($request->path(), '/') ];
+        $back = [ $this->getReturnParameter() => $this->getCurrentPath($request) ];
 
         if ($this->hasMethod(Action::EDIT) && $this->canEditModel($request, $resource)) {
             $actions[] = [
