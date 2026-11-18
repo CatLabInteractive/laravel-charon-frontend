@@ -15,9 +15,11 @@ Nothing to change in an application; both are additions.
   always among a form's options, also when the option list doesn't offer
   them (beyond its limit, another organisation's). Before, saving such a
   form silently unlinked them.
-- **Saving checks permission before reading the input**, so a refused save
-  no longer stores its uploads. `store()` checks `isMethodAllowed(create)`,
-  `update()` loads the resource and checks `isMethodAllowed(edit)`.
+- **Create forms and saves check permission first.** `create()` and
+  `store()` check `isMethodAllowed(create)` (the same check as the New
+  button), `update()` loads the resource and checks `isMethodAllowed(edit)`,
+  before widgets read the input, so a refused save no longer stores its
+  uploads and a create form no longer lists options to whoever opens it.
 - An unreadable date is a validation error instead of a 500.
 
 **Custom show views (since 2.0.3).** A view that overrides `crud/view`

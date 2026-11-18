@@ -220,6 +220,11 @@ trait FrontCrudController
      */
     public function create(Request $request)
     {
+        // The form lists options (a parent's children, ...): only for those who may create.
+        if (!$this->isMethodAllowed($request, Action::CREATE)) {
+            abort(403);
+        }
+
         return $this->formView(Action::CREATE, 'store');
     }
 
