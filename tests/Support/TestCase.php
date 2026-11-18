@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 use Tests\Support\Controllers\CategoryApiController;
 use Tests\Support\Controllers\CategoryFrontController;
+use Tests\Support\Controllers\CategoryWidgetFrontController;
 use Tests\Support\Controllers\FormWidgetFrontController;
 use Tests\Support\Controllers\UploadWidgetFrontController;
 use Tests\Support\Controllers\LabelledWidgetFrontController;
@@ -60,8 +61,8 @@ abstract class TestCase extends OrchestraTestCase
             'prefix' => '',
         ]);
 
-        // FrontCrudController::create()/edit() write to the session
-        // (frontcrud_index_redirect); keep it in memory for tests.
+        // Flash messages and old input live in the session; keep it in
+        // memory for tests.
         $app['config']->set('session.driver', 'array');
 
         // Needed for the EncryptCookies/Session stack that StartSession
@@ -138,6 +139,7 @@ abstract class TestCase extends OrchestraTestCase
             NestedCategoryFrontController::routes('/admin/shops/{shop}/categories', NestedCategoryFrontController::class);
             FormWidgetFrontController::routes('/admin/form-widgets', FormWidgetFrontController::class);
             UploadWidgetFrontController::routes('/admin/upload-widgets', UploadWidgetFrontController::class);
+            CategoryWidgetFrontController::routes('/admin/categories/{category}/widgets', CategoryWidgetFrontController::class);
         });
     }
 

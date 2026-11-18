@@ -1,3 +1,53 @@
+# Upgrading to 3.0
+
+3.0 adds page chrome and changes where saving leads. Nothing changes in the
+resource definitions or the API controllers.
+
+## What changes for an application
+
+- **Page chrome.** Every crud page gets a title, breadcrumbs and (on the
+  show page) Edit and Delete buttons, from `crud/chrome.blade.php`, rendered
+  by `layouts/crud.blade.php` above `cfcontent`. The show page loses its
+  "Details" heading. Views that extend `charonfrontend::layouts.crud` with
+  their own headings can switch it off by overriding `getPageChrome()` to
+  return `[]`.
+- **After saving** (create or edit) you land on the saved resource's show
+  page, not on the index. A controller nested with `setParentController()`
+  goes back to the page it was opened from (its `return` url) instead.
+- **After deleting** you land on the `return` url, unless that is one of the
+  deleted resource's own pages; otherwise on the index.
+- **The return url travels in the form** as a hidden `return` field, not in
+  the session (`frontcrud_index_redirect` is gone), so two tabs no longer
+  overwrite each other. Only paths on the same site are accepted.
+- **Forms have a Cancel link**: the return url, else the show page, else the
+  index.
+- `redirectBackToIndex()` is replaced by `redirectAfterSave()` and
+  `redirectAfterDestroy()`. `FrontCrudControllerContract` gains
+  `getBreadcrumbTrail(Request, $id = null)`; the trait implements it.
+- `isMethodAllowed()` returns false without a logged-in user instead of
+  failing.
+
+## Nesting
+
+For routes like `events/{event}/ticketCategories`:
+
+```php
+public function __construct()
+{
+    parent::__construct();
+    $this->setParentController(EventController::class, 'event');
+}
+```
+
+The breadcrumbs then read Events › Quiz night › Ticket categories › Paid
+ticket, and saving a ticket category opened from the event page goes back to
+the event.
+
+## Customising
+
+Override `getIndexTitle()`, `getResourceTitle()`, `getBreadcrumbs()` or
+`getPageActions()` (merge with the parent's result to add buttons).
+
 # Upgrading to 2.0
 
 2.0 builds every create/edit form from **widgets**: one per field, picked from

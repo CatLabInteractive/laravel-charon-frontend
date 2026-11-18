@@ -45,4 +45,14 @@ interface FrontCrudControllerContract
      * @return string[]
      */
     public function getLinkableOptions(Request $request): array;
+
+    /**
+     * Breadcrumbs that lead to one of this controller's resources (by id),
+     * or to its index without an id; used by the pages of a child
+     * controller that setParentController() nests under this one.
+     * @param Request $request
+     * @param mixed $id
+     * @return array [ [ 'label' => string, 'url' => string|null ] ]
+     */
+    public function getBreadcrumbTrail(Request $request, $id = null): array;
 }
