@@ -71,7 +71,7 @@ class FileWidget extends BaseWidget implements ProvidesOptions
             $validator = Validator::make(
                 [ 'file' => $file ],
                 [ 'file' => $this->getValidationRules() ],
-                [ 'file.mimetypes' => $field->getLabel() . ': this type of file is not accepted.' ]
+                [ 'file.mimetypes' => __('charonfrontend::crud.file_not_accepted', [ 'field' => $field->getLabel() ]) ]
             );
 
             if ($validator->fails()) {

@@ -4,6 +4,7 @@ namespace CatLab\CharonFrontend\Widgets;
 
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * A date and a time input. Both empty means no value.
@@ -32,6 +33,12 @@ class DateTimeWidget extends BaseWidget
             return null;
         }
 
-        return Carbon::parse($date . ' ' . ($time ?: '00:00'))->format(DATE_RFC822);
+        try {
+            return Carbon::parse($date . ' ' . ($time ?: '00:00'))->format(DATE_RFC822);
+        } catch (\Exception $e) {
+            throw ValidationException::withMessages([
+                $field->getDotName('date') => __('charonfrontend::crud.invalid_date', [ 'field' => $field->getLabel() ]),
+            ]);
+        }
     }
 }

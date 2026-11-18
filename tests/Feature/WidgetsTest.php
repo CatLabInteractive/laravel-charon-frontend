@@ -101,6 +101,22 @@ class WidgetsTest extends TestCase
         $response->assertDontSee('Other organisation tools');
     }
 
+    /**
+     * A record that's linked now but not offered (beyond the option limit,
+     * another organisation's) stays selected, so saving keeps the link.
+     */
+    public function testLinkedRecordsOutsideTheOptionsStaySelected()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $this->seedCategory('Tools');
+        $theirs = $this->seedCategory('Other organisation tools');
+        $widget = $this->seedWidget('Hammer', [ 'category_id' => $theirs->id ]);
+
+        $this->get('/admin/form-widgets/' . $widget->id . '/edit')
+            ->assertStatus(200)
+            ->assertSee('<option value="' . $theirs->id . '" selected>Other organisation tools</option>', false);
+    }
+
     public function testStoreReadsEveryWidget()
     {
         $this->actingAsAuthorizedAdmin();
@@ -179,6 +195,27 @@ class WidgetsTest extends TestCase
         $this->assertSame($stored->id, (int) $widget->fresh()->category_id);
     }
 
+    /**
+     * Without permission to edit, nothing is uploaded.
+     */
+    public function testUploadsAreNotStoredWithoutPermission()
+    {
+        \Illuminate\Support\Facades\Gate::before(function ($user, $ability) {
+            return $ability !== 'edit';
+        });
+        $this->actingAs(new \Tests\Support\Models\AdminUser());
+        $widget = $this->seedWidget('Hammer');
+
+        $this->put('/admin/upload-widgets/' . $widget->id, [
+            'fields' => [
+                'name' => 'Hammer',
+                'category' => [ 'id' => '', 'file' => UploadedFile::fake()->image('poster.png', 60, 90) ],
+            ],
+        ])->assertStatus(403);
+
+        $this->assertNull(Category::where('name', 'poster.png')->first());
+    }
+
     public function testFileWidgetPicksAndRemoves()
     {
         $this->actingAsAuthorizedAdmin();
@@ -255,7 +292,7 @@ class WidgetsTest extends TestCase
         $html = (new LinkableWidget())->render($field);
 
         $this->assertStringContainsString('<input type="hidden" name="fields[tags][ids][]" value="">', $html);
-        $this->assertStringContainsString('<select class="form-control" id="field-tags" name="fields[tags][ids][]" multiple size="8" data-charon-picker>', $html);
+        $this->assertStringContainsString('<select class="form-control" id="field-tags" name="fields[tags][ids][]" multiple size="8" data-charon-picker data-charon-picker-placeholder="Type to add…"', $html);
         $this->assertStringContainsString('<option value="6">Tag 6</option>', $html);
         $this->assertStringNotContainsString('type="checkbox"', $html);
         $this->assertStringContainsString('charon-picker', $html);
@@ -276,6 +313,15 @@ class WidgetsTest extends TestCase
 
         $request = Request::create('/', 'POST', [ 'fields' => [ 'name' => [ 'date' => '', 'time' => '' ] ] ]);
         $this->assertNull($widget->read($request, $field));
+
+        // Garbage is a validation error, not a crash.
+        $request = Request::create('/', 'POST', [ 'fields' => [ 'name' => [ 'date' => 'garbage', 'time' => '' ] ] ]);
+        try {
+            $widget->read($request, $field);
+            $this->fail('Expected a validation error');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertSame([ 'fields.name.date' => [ 'Name: this is not a valid date.' ] ], $e->errors());
+        }
     }
 
     /**

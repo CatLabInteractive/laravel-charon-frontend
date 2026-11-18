@@ -51,12 +51,21 @@ class FrontCrudControllerTest extends TestCase
     }
 
     /**
+     * The create form is only for those who may create.
+     */
+    public function testCreateFormIsRefusedWithoutPermission()
+    {
+        $this->get('/admin/widgets/create')->assertStatus(403);
+    }
+
+    /**
      * Create form, no resource: every field renders through its widget at
      * its empty default, and the form posts back to the collection URL with
      * a "post" method-spoof field.
      */
     public function testCreateFormRendersRealHtmlFormWithoutOldValues()
     {
+        $this->actingAsAuthorizedAdmin();
         $response = $this->get('/admin/widgets/create');
 
         $response->assertStatus(200);

@@ -18,6 +18,7 @@ use Tests\Support\Controllers\CategoryFrontController;
 use Tests\Support\Controllers\CategoryWidgetFrontController;
 use Tests\Support\Controllers\HubCategoryFrontController;
 use Tests\Support\Controllers\FormWidgetFrontController;
+use Tests\Support\Controllers\GroupedWidgetFrontController;
 use Tests\Support\Controllers\UploadWidgetFrontController;
 use Tests\Support\Controllers\LabelledWidgetFrontController;
 use Tests\Support\Controllers\NestedCategoryFrontController;
@@ -139,6 +140,7 @@ abstract class TestCase extends OrchestraTestCase
             NestedWidgetFrontController::routes('/admin/nested-widgets', NestedWidgetFrontController::class);
             NestedCategoryFrontController::routes('/admin/shops/{shop}/categories', NestedCategoryFrontController::class);
             FormWidgetFrontController::routes('/admin/form-widgets', FormWidgetFrontController::class);
+            GroupedWidgetFrontController::routes('/admin/grouped-widgets', GroupedWidgetFrontController::class);
             UploadWidgetFrontController::routes('/admin/upload-widgets', UploadWidgetFrontController::class);
             CategoryWidgetFrontController::routes('/admin/categories/{category}/widgets', CategoryWidgetFrontController::class);
             HubCategoryFrontController::routes('/admin/hub-categories', HubCategoryFrontController::class);
