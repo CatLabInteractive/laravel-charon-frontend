@@ -44,6 +44,24 @@ class NavigationTest extends TestCase
             ->assertSee('<li class="breadcrumb-item active" aria-current="page">Edit</li>', false);
     }
 
+    /**
+     * Rows open their show page: the view action is a visible button and
+     * the row-click script uses it as the row's link.
+     */
+    public function testRowsLinkToTheirShowPage()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $widget = $this->seedWidget('Hammer');
+
+        $html = $this->get('/admin/widgets')
+            ->assertStatus(200)
+            ->assertSee('table-action-view', false)
+            ->assertSee('tr.charon-row-link', false)
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('#href="http://localhost/admin/widgets/' . $widget->id . '"\s+class="[^"]*table-action-view#', $html);
+    }
+
     public function testTheChromeFollowsTheAppLocale()
     {
         $this->actingAsAuthorizedAdmin();

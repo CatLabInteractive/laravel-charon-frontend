@@ -8,4 +8,6 @@
 
     @yield('cfcontent')
 
+    @include('charonfrontend::crud.row-links')
+
 @endsection

@@ -1,3 +1,13 @@
+# Rows open their show page (2.0.5)
+
+- The table's View action is a visible eye button next to Edit and Delete
+  (it was hidden in the row's ⋯ menu).
+- Clicking anywhere on a row opens that button's page, the show page with
+  its tabs. Links, buttons and form fields in the row keep their own
+  behaviour; ctrl/cmd/middle click opens a new tab. Rows without a View
+  button (not allowed, or no show route) stay inert. The script and style
+  come from `crud/row-links.blade.php`, included by `layouts/crud`.
+
 # Field groups and translated labels (2.0.4)
 
 Nothing to change in an application; both are additions.

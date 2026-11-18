@@ -525,6 +525,7 @@ trait FrontCrudController
                 ))
                     ->setRouteParameters($this->getShowRouteParameters($request))
                     ->setQueryParameters($this->getShowQueryParameters($request))
+                    ->setIcon('view')
                     ->setCondition(function($model) use ($request) {
                         return $this->canViewModel($request, $model);
                     })
