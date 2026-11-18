@@ -145,7 +145,8 @@ class ActionsAndErrorsTest extends TestCase
 
         $html = $this->get('/admin/action-widgets/create')->assertStatus(200)->getContent();
 
-        // under the label of the text field, and under the checkbox
+        // in the summary above the form, under the label of the text field, and under the checkbox
+        $this->assertMatchesRegularExpression('~<li>That name is taken\.</li>~', $html);
         $this->assertMatchesRegularExpression('~<label for="field-name">Name</label>\s*<div class="invalid-feedback d-block field-error" role="alert">That name is taken\.</div>~', $html);
         $this->assertMatchesRegularExpression('~Activate it later\.</div>~', $html);
         // what was typed is still there

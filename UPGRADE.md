@@ -5,7 +5,8 @@ Needs `catlabinteractive/laravel-table` ^1.4.
 - **Errors sit under their field.** What the API says about a field of the
   form (`error.issues.<field>`) is shown under that field's label, as
   `.invalid-feedback.field-error`, through Laravel's `$errors`
-  (`fields.<name>`). Issues about anything else still go in the `message`
+  (`fields.<name>`), and so also in the summary the form already shows
+  above its fields. Issues about anything else still go in the `message`
   flash above the page, now without the API's generic first line and
   escaped. A controller that overrides `handleErrorResponse()` keeps its own
   behaviour. A custom widget view that does not include `widgets/label`
