@@ -23,6 +23,7 @@ return [
     'nothing_to_choose' => 'Nothing to choose from.',
     'no_file' => 'No file',
     'upload_new' => 'Upload a new file',
+    'use_kept_upload' => 'Use the file you uploaded:',
     'pick_existing' => 'or pick an existing one',
     'none' => '(none)',
     'remove_field' => 'Remove :field',

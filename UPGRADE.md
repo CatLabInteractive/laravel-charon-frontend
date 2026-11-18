@@ -1,3 +1,19 @@
+# Uploads on a failed save (2.0.6)
+
+- **`UploadHandler::discard($id)` is new** and must be implemented. A file
+  widget still stores its upload while the form is read (the API links
+  resources by identifier), but when the API refuses the save, or anything
+  throws, the front controller now calls `discard()` for every file stored
+  during that save. Remove the stored file there (delete the asset).
+- **The uploaded file survives the redirect.** On a failed save the file is
+  copied to `storage/app/charonfrontend/kept-uploads` for the session that
+  uploaded it, and the form shows "Use the file you uploaded: poster.png"
+  (checked, with a preview for images up to 2 MB) instead of an empty file
+  input. Submitting again stores it; unchecking it falls back to the
+  picker. Kept files are removed after a day.
+- Controllers that override `store()` or `update()` can wrap their own save
+  in `saveWithUploads($request, fn () => ...)` to get the same behaviour.
+
 # Rows open their show page, HTML on the show page (2.0.5)
 
 - The table's View action is a visible eye button next to Edit and Delete

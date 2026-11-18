@@ -23,6 +23,7 @@ return [
     'nothing_to_choose' => 'Niets om uit te kiezen.',
     'no_file' => 'Geen bestand',
     'upload_new' => 'Een nieuw bestand uploaden',
+    'use_kept_upload' => 'Het bestand gebruiken dat je uploadde:',
     'pick_existing' => 'of een bestaand kiezen',
     'none' => '(geen)',
     'remove_field' => ':field verwijderen',

@@ -8,6 +8,13 @@
         </div>
 
         <div class="charon-file-field-controls" style="flex: 1 1 auto; min-width: 0;">
+            @if($kept)
+                <div class="form-check mb-2">
+                    <input type="checkbox" class="form-check-input" id="{{ $field->getId('kept') }}" name="{{ $field->getInputName('[kept]') }}" value="{{ $kept['token'] }}" checked>
+                    <label class="form-check-label" for="{{ $field->getId('kept') }}">{{ __('charonfrontend::crud.use_kept_upload') }} <strong>{{ $kept['name'] }}</strong></label>
+                </div>
+            @endif
+
             <div class="mb-2">
                 <small class="form-text text-muted mt-0">{{ __('charonfrontend::crud.upload_new') }}</small>
                 <input type="file" class="form-control-file" id="{{ $field->getId('file') }}" name="{{ $field->getInputName('[file]') }}" accept="{{ $accept }}"
