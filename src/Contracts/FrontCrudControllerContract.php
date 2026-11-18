@@ -37,4 +37,12 @@ interface FrontCrudControllerContract
      * @return string|null
      */
     public function getShowUrl(Request $request, RESTResource $resource): ?string;
+
+    /**
+     * This controller's resources as options for a relationship in another
+     * controller's form, label by identifier.
+     * @param Request $request
+     * @return string[]
+     */
+    public function getLinkableOptions(Request $request): array;
 }

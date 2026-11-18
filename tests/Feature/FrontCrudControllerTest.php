@@ -51,15 +51,9 @@ class FrontCrudControllerTest extends TestCase
     }
 
     /**
-     * Create form, no resource: every field renders at its "empty" default
-     * (no old input, no repopulation), and the form tag posts back to the
-     * collection URL with POST + a "post" method-spoof field (matches the
-     * pre-rewrite laravelcollective behaviour: Form::open() never received
-     * a 'method' option, so the <form> tag itself was always POST; the
-     * actual create/update verb only ever went into the separate spoofed
-     * _method field. Verified against the old view via
-     * Collective\Html\FormBuilder::open()/getAppendage(), see
-     * task-14-report.md).
+     * Create form, no resource: every field renders through its widget at
+     * its empty default, and the form posts back to the collection URL with
+     * a "post" method-spoof field.
      */
     public function testCreateFormRendersRealHtmlFormWithoutOldValues()
     {
@@ -72,42 +66,40 @@ class FrontCrudControllerTest extends TestCase
         $this->assertStringContainsString('/admin/widgets', $response->getContent());
         $response->assertSee('name="_token"', false);
         $response->assertSee('name="_method" value="post"', false);
+        $response->assertDontSee('multipart/form-data', false);
 
-        // "name": plain string field -> single-row <textarea> (the
-        // original view never used Form::text() - every scalar,
-        // non-enum, non-boolean, non-dateTime field went through
-        // Form::textarea(..., rows=1); this rewrite preserves that).
-        $response->assertSee('<textarea name="fields[name][input][0][value]" rows="1" class="form-control" cols="50"></textarea>', false);
+        // "name": string -> TextWidget
+        $response->assertSee('<input type="text" id="field-name" name="fields[name]" value="" class="form-control">', false);
 
-        // "status": enum -> <select> with both options, none selected
-        // (no resource, no old input).
-        $response->assertSee('<select name="fields[status][input][0][value]" class="form-control">', false);
+        // "status": enum -> SelectWidget, nothing selected
+        $response->assertSee('<select class="form-control" id="field-status" name="fields[status]">', false);
         $response->assertSee('<option value="draft">draft</option>', false);
         $response->assertSee('<option value="published">published</option>', false);
 
-        // "active": boolean -> unchecked checkbox, no hidden "0" companion
-        // field (laravelcollective's Form::checkbox() never emitted one -
-        // verified against FormBuilder::checkable()/getCheckboxCheckedState(),
-        // see task-14-report.md).
-        $response->assertSee('<input type="checkbox" name="fields[active][input][0][value]" value="1">', false);
-        $response->assertDontSee('fields[active][input][0][value_hidden]', false);
+        // "active": boolean -> CheckboxWidget, unchecked, with a hidden 0
+        $response->assertSee('<input type="hidden" name="fields[active]" value="0">', false);
+        $response->assertSee('<input type="checkbox" class="form-check-input" id="field-active" name="fields[active]" value="1">', false);
 
-        // "description": html -> rich <textarea>, empty.
-        $response->assertSee('name="fields[description][input][0][value]"', false);
+        // "description": html -> rich TextareaWidget, empty
+        $response->assertSee('name="fields[description]"', false);
         $response->assertSee('class="form-control html-richtext-input"', false);
+
+        // "category": linkable relationship -> LinkableWidget
+        $response->assertSee('<select class="form-control" id="field-category" name="fields[category][id]">', false);
     }
 
     /**
      * Edit form, with a persisted resource: every field repopulates from
-     * the resource's current value (text-ish value, select selected-option,
-     * checkbox checked-state), and the method-spoof field carries "put".
+     * the resource's current value, and the method-spoof field carries "put".
      */
     public function testEditFormRepopulatesFieldsFromResource()
     {
+        $category = $this->seedCategory('Tools');
         $widget = $this->seedWidget('Widget One', [
             'status' => 'published',
             'active' => true,
             'description' => 'Rich text body',
+            'category_id' => $category->id,
         ]);
 
         $response = $this->get('/admin/widgets/' . $widget->id . '/edit');
@@ -115,19 +107,12 @@ class FrontCrudControllerTest extends TestCase
         $response->assertStatus(200);
 
         $response->assertSee('name="_method" value="put"', false);
-
-        // text-ish field repopulated with the resource's current value
-        $response->assertSee('<textarea name="fields[name][input][0][value]" rows="1" class="form-control" cols="50">Widget One</textarea>', false);
-
-        // select: the resource's current value is marked selected
+        $response->assertSee('<input type="text" id="field-name" name="fields[name]" value="Widget One" class="form-control">', false);
         $response->assertSee('<option value="published" selected>published</option>', false);
         $response->assertSee('<option value="draft">draft</option>', false);
-
-        // checkbox: checked because the resource's value is true
-        $response->assertSee('<input type="checkbox" name="fields[active][input][0][value]" value="1" checked>', false);
-
-        // textarea: repopulated with the resource's current value
+        $response->assertSee('<input type="checkbox" class="form-check-input" id="field-active" name="fields[active]" value="1" checked>', false);
         $response->assertSee('Rich text body', false);
+        $response->assertSee('<option value="' . $category->id . '" selected>Tools</option>', false);
     }
 
     /**

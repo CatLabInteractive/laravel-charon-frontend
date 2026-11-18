@@ -12,7 +12,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ $action }}" accept-charset="UTF-8">
+    <form method="POST" action="{{ $action }}" accept-charset="UTF-8"{!! $multipart ? ' enctype="multipart/form-data"' : '' !!}>
         @csrf
         @method($method)
 
