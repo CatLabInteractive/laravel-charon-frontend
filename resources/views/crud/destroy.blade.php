@@ -17,9 +17,9 @@
             <input type="hidden" name="{{ $returnParameter }}" value="{{ $return }}">
         @endif
 
-        <p>{{ __('charonfrontend::crud.confirm_delete') }}</p>
+        <p>{{ $question ?? __('charonfrontend::crud.confirm_delete') }}</p>
 
-        <input type="submit" value="{{ __('charonfrontend::crud.yes') }}" class="btn btn-danger">
+        <input type="submit" value="{{ $confirmLabel ?? __('charonfrontend::crud.yes') }}" class="btn btn-danger">
         <a href="{{ $back }}" class="btn btn-secondary">{{ __('charonfrontend::crud.no') }}</a>
 
     </form>

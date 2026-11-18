@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
+use Tests\Support\Controllers\ActionWidgetFrontController;
 use Tests\Support\Controllers\CategoryApiController;
 use Tests\Support\Controllers\CategoryFrontController;
 use Tests\Support\Controllers\CategoryWidgetFrontController;
@@ -143,6 +144,7 @@ abstract class TestCase extends OrchestraTestCase
             GroupedWidgetFrontController::routes('/admin/grouped-widgets', GroupedWidgetFrontController::class);
             UploadWidgetFrontController::routes('/admin/upload-widgets', UploadWidgetFrontController::class);
             CategoryWidgetFrontController::routes('/admin/categories/{category}/widgets', CategoryWidgetFrontController::class);
+            ActionWidgetFrontController::routes('/admin/action-widgets', ActionWidgetFrontController::class);
             HubCategoryFrontController::routes('/admin/hub-categories', HubCategoryFrontController::class);
             Route::get('/admin/hub-categories/{category}/history', [ HubCategoryFrontController::class, 'history' ]);
         });

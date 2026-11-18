@@ -20,6 +20,7 @@ use CatLab\CharonFrontend\Contracts\FrontCrudControllerContract;
 use CatLab\CharonFrontend\Exceptions\UnexpectedResponse;
 use CatLab\CharonFrontend\Exceptions\UnresolvedMethodException;
 
+use CatLab\CharonFrontend\Models\Table\CallbackAction;
 use CatLab\CharonFrontend\Models\Table\ResourceAction;
 use CatLab\CharonFrontend\Widgets\FormField;
 use CatLab\CharonFrontend\Widgets\PendingUploads;
@@ -124,6 +125,18 @@ trait FrontCrudController
      * @var array
      */
     private $appTabs = [];
+
+    /**
+     * Row actions registered with addRowAction().
+     * @var array[]
+     */
+    private $appRowActions = [];
+
+    /**
+     * Page actions registered with addPageAction().
+     * @var array[]
+     */
+    private $appPageActions = [];
 
     /**
      * @var array[] [ [ 'label' => string, 'fields' => string[] ] ]
@@ -429,7 +442,32 @@ trait FrontCrudController
             'return' => $this->getReturnUrl($request),
             'layout' => $this->layout,
             'chrome' => $this->getPageChrome($request, Action::DESTROY, $resource),
+            'question' => $this->getDestroyConfirmText($request, $resource),
+            'confirmLabel' => $this->getDestroyConfirmLabel($request, $resource),
         ]);
+    }
+
+    /**
+     * What the delete page asks. Override for a resource whose delete means
+     * something else ("go back to the standard version?").
+     * @param Request $request
+     * @param RESTResource $resource
+     * @return string
+     */
+    protected function getDestroyConfirmText(Request $request, RESTResource $resource): string
+    {
+        return __('charonfrontend::crud.confirm_delete');
+    }
+
+    /**
+     * The button that confirms the delete.
+     * @param Request $request
+     * @param RESTResource $resource
+     * @return string
+     */
+    protected function getDestroyConfirmLabel(Request $request, RESTResource $resource): string
+    {
+        return __('charonfrontend::crud.yes');
     }
 
     /**
@@ -443,7 +481,12 @@ trait FrontCrudController
     public function destroy(Request $request)
     {
         $resource = $this->dispatchToApi(Action::VIEW, $request)->getResource();
-        $this->dispatchToApi(Action::DESTROY, $request);
+        $response = $this->dispatchToApi(Action::DESTROY, $request);
+
+        // The api may refuse (a 4xx with its reasons): say why instead of "Deleted".
+        if ($response instanceof JsonResponse && $response->getStatusCode() >= 400) {
+            return $this->handleErrorResponse($response, 'destroy');
+        }
 
         return $this->afterDestroy($request, $resource);
     }
@@ -501,7 +544,136 @@ trait FrontCrudController
             return $this->getRelatedResourceLabel($request, $related);
         });
 
+        $table->hideColumns($this->getHiddenIndexColumns($request));
+        $table->hideFilters($this->getHiddenIndexFilters($request));
+
         return $table;
+    }
+
+    /**
+     * Fields (by display name) that get no column in the list, e.g. an
+     * identifier that means nothing to the reader.
+     * @param Request $request
+     * @return string[]
+     */
+    protected function getHiddenIndexColumns(Request $request): array
+    {
+        return [];
+    }
+
+    /**
+     * Filterable fields (by display name) that get no filter above the list.
+     * @param Request $request
+     * @return string[]
+     */
+    protected function getHiddenIndexFilters(Request $request): array
+    {
+        return [];
+    }
+
+    /**
+     * Add an action of the application to every row of the list, next to
+     * View, Edit and Delete:
+     *
+     * $this->addRowAction('Preview', function (Request $request, RESTResource $mail) {
+     *     return action('MailController@preview', [ $this->idOf($mail) ]);
+     * });
+     *
+     * It is a button with its label. Options:
+     * - 'style': Bootstrap button style ('primary', 'danger', 'outline-secondary', ...).
+     * - 'icon': 'view', 'edit', 'delete' or an icon the app added to the table
+     *   views; the action is then an icon button with the label as tooltip.
+     * - 'menu' => true: an entry of the row's "more" menu instead of a button.
+     * - 'method': 'post', 'put', 'patch' or 'delete'; the action is then a form
+     *   (with csrf token) instead of a link.
+     * - 'confirm': a question to confirm before the action is done.
+     * - 'condition': function (Request, RESTResource): bool; false hides the
+     *   action for that row. The url returning null hides it as well.
+     * - 'select': [ 'name' => string, 'options' => function (Request, RESTResource): array value => label,
+     *   'selected' => function (Request, RESTResource): mixed ]: a select in
+     *   front of the button, posted as that name (the method defaults to post).
+     *   A row without options gets no action.
+     *
+     * @param string $label
+     * @param callable $url function (Request, RESTResource): ?string
+     * @param array $options
+     * @return $this
+     */
+    protected function addRowAction(string $label, callable $url, array $options = [])
+    {
+        $this->appRowActions[] = [ 'label' => $label, 'url' => $url, 'options' => $options ];
+        return $this;
+    }
+
+    /**
+     * A built-in row action (Action::VIEW, EDIT or DESTROY) before it joins
+     * the table: override to draw it differently, e.g.
+     * $rowAction->setIcon(null)->showLabel()->setStyle('danger').
+     * @param string $action
+     * @param ResourceAction $rowAction
+     * @return ResourceAction
+     */
+    protected function configureRowAction(string $action, ResourceAction $rowAction): ResourceAction
+    {
+        return $rowAction;
+    }
+
+    /**
+     * @param Request $request
+     * @param Table $table
+     */
+    private function addAppRowActions(Request $request, Table $table): void
+    {
+        foreach ($this->appRowActions as $appAction) {
+            $options = $appAction['options'];
+            $url = $appAction['url'];
+            $select = $options['select'] ?? null;
+
+            $rowAction = new CallbackAction($appAction['label'], function ($resource) use ($request, $url) {
+                return call_user_func($url, $request, $resource);
+            });
+
+            if (isset($options['icon'])) {
+                $rowAction->setIcon($options['icon']);
+            } elseif (empty($options['menu'])) {
+                $rowAction->showLabel();
+            }
+
+            if (isset($options['style'])) {
+                $rowAction->setStyle($options['style']);
+            }
+            if (isset($options['method'])) {
+                $rowAction->setMethod($options['method']);
+            }
+            if (isset($options['confirm'])) {
+                $rowAction->setConfirm($options['confirm']);
+            }
+
+            if ($select) {
+                $rowAction->setOptions(
+                    $select['name'],
+                    function ($resource) use ($request, $select) {
+                        return call_user_func($select['options'], $request, $resource);
+                    },
+                    isset($select['selected']) ? function ($resource) use ($request, $select) {
+                        return call_user_func($select['selected'], $request, $resource);
+                    } : null
+                );
+            }
+
+            $rowAction->setCondition(function ($resource) use ($request, $options, $url, $select) {
+                if (isset($options['condition']) && !call_user_func($options['condition'], $request, $resource)) {
+                    return false;
+                }
+                if ($select && count((array) call_user_func($select['options'], $request, $resource)) === 0) {
+                    return false;
+                }
+
+                return call_user_func($url, $request, $resource) !== null;
+            });
+
+            $table->modelAction($rowAction);
+        }
     }
 
     /**
@@ -522,7 +694,7 @@ trait FrontCrudController
         $table = $this->makeTable($request, $collection, $resourceDefinition, $context);
 
         if ($this->hasMethod(Action::VIEW)) {
-            $table->modelAction(
+            $table->modelAction($this->configureRowAction(Action::VIEW,
                 (new ResourceAction(
                     $this->getControllerAction(Action::VIEW),
                     $this->getActionText(Action::VIEW, $resourceDefinition),
@@ -534,11 +706,11 @@ trait FrontCrudController
                     ->setCondition(function($model) use ($request) {
                         return $this->canViewModel($request, $model);
                     })
-            );
+            ));
         }
 
         if ($this->hasMethod(Action::EDIT)) {
-            $table->modelAction(
+            $table->modelAction($this->configureRowAction(Action::EDIT,
                 (new ResourceAction(
                     $this->getControllerAction(Action::EDIT),
                     $this->getActionText(Action::EDIT, $resourceDefinition),
@@ -550,11 +722,11 @@ trait FrontCrudController
                     ->setCondition(function($model) use ($request) {
                         return $this->canEditModel($request, $model);
                     })
-            );
+            ));
         }
 
         if ($this->hasMethod(Action::DESTROY)) {
-            $table->modelAction(
+            $table->modelAction($this->configureRowAction(Action::DESTROY,
                 (new ResourceAction(
                     $this->getControllerAction(Action::DESTROY),
                     $this->getActionText(Action::DESTROY, $resourceDefinition),
@@ -566,8 +738,10 @@ trait FrontCrudController
                     ->setCondition(function($model) use ($request) {
                         return $this->canDestroyModel($request, $model);
                     })
-            );
+            ));
         }
+
+        $this->addAppRowActions($request, $table);
 
         // Now set collection actions too
         if (
@@ -1523,21 +1697,74 @@ trait FrontCrudController
     protected function handleErrorResponse(JsonResponse $response, $redirectMethod)
     {
         $data = $response->getData(true);
+        $error = is_array($data['error'] ?? null) ? $data['error'] : [];
 
-        $message = $data['error']['message'];
+        // What the api says about a field of the form goes under that
+        // field (errors of "fields.<name>", shown by the widgets' label);
+        // everything else in one message above the page.
+        $formFields = [];
+        if ($redirectMethod !== 'destroy') {
+            try {
+                foreach ($this->getFormFields(Action::CREATE) as $formField) {
+                    $formFields[$formField->getName()] = $formField;
+                }
+                foreach ($this->getFormFields(Action::EDIT) as $formField) {
+                    $formFields[$formField->getName()] = $formField;
+                }
+            } catch (\Exception $e) {
+                $formFields = [];
+            }
+        }
 
-        if (isset($data['error']['issues'])) {
-            // Validation errors!
-            foreach ($data['error']['issues'] as $field => $errors) {
-                foreach ($errors as $error) {
-                    $message .= '<br>' . $error;
+        $fieldErrors = [];
+        $other = [];
+        foreach (($error['issues'] ?? []) as $property => $issues) {
+            foreach ((array) $issues as $issue) {
+                if (!is_scalar($issue) || (string) $issue === '') {
+                    continue;
+                }
+
+                $name = $this->issueFieldName((string) $property, $formFields);
+                if ($name !== null) {
+                    $fieldErrors[$formFields[$name]->getDotName()][] = (string) $issue;
+                } else {
+                    $other[] = (string) $issue;
                 }
             }
         }
 
-        return redirect()->back()
-            ->with('message', new HtmlString($message))
-            ->withInput();
+        $redirect = redirect()->back()->withInput();
+
+        if (count($fieldErrors) > 0) {
+            $redirect->withErrors($fieldErrors);
+        }
+
+        if (count($other) === 0 && count($fieldErrors) === 0) {
+            $other[] = (string) ($error['message'] ?? $response->getStatusCode());
+        }
+
+        if (count($other) > 0) {
+            $redirect->with('message', new HtmlString(implode('<br>', array_map('e', $other))));
+        }
+
+        return $redirect;
+    }
+
+    /**
+     * The form field an issue of the api is about: the property itself, or
+     * the field a nested property ("blocks.0.title") belongs to.
+     * @param string $property
+     * @param FormField[] $formFields by name
+     * @return string|null
+     */
+    private function issueFieldName(string $property, array $formFields): ?string
+    {
+        if (isset($formFields[$property])) {
+            return $property;
+        }
+
+        $first = explode('.', $property)[0];
+        return isset($formFields[$first]) ? $first : null;
     }
 
     /**
@@ -1939,7 +2166,47 @@ trait FrontCrudController
             ];
         }
 
+        foreach ($this->appPageActions as $appAction) {
+            $options = $appAction['options'];
+            if (isset($options['condition']) && !call_user_func($options['condition'], $request, $resource)) {
+                continue;
+            }
+
+            $url = call_user_func($appAction['url'], $request, $resource);
+            if ($url === null) {
+                continue;
+            }
+
+            $actions[] = [
+                'label' => $appAction['label'],
+                'url' => $url,
+                'style' => $options['style'] ?? 'secondary',
+                'method' => isset($options['method']) ? strtolower($options['method']) : 'get',
+                'confirm' => $options['confirm'] ?? null,
+            ];
+        }
+
         return $actions;
+    }
+
+    /**
+     * Add a button of the application above the show page (and above the
+     * app pages that show the hub header), after Edit and Delete:
+     *
+     * $this->addPageAction('Publish', function (Request $request, RESTResource $post) {
+     *     return action('PostController@publish', [ $this->idOf($post) ]);
+     * }, [ 'method' => 'post', 'style' => 'success', 'confirm' => 'Publish this post?' ]);
+     *
+     * Options: 'style', 'method', 'confirm' and 'condition', as for addRowAction().
+     * @param string $label
+     * @param callable $url function (Request, RESTResource): ?string; null hides the button.
+     * @param array $options
+     * @return $this
+     */
+    protected function addPageAction(string $label, callable $url, array $options = [])
+    {
+        $this->appPageActions[] = [ 'label' => $label, 'url' => $url, 'options' => $options ];
+        return $this;
     }
 
     /**

@@ -31,8 +31,17 @@
                                 @endforeach
                             </div>
                         </div>
+                    @elseif(($pageAction['method'] ?? 'get') !== 'get')
+                        <form method="post" action="{{ $pageAction['url'] }}" class="d-inline-block"
+                              @if(!empty($pageAction['confirm'])) onsubmit="return confirm({{ json_encode($pageAction['confirm']) }});" @endif>
+                            @csrf
+                            @if($pageAction['method'] !== 'post')
+                                @method(strtoupper($pageAction['method']))
+                            @endif
+                            <button type="submit" class="btn btn-{{ $pageAction['style'] ?? 'secondary' }}">{{ $pageAction['label'] }}</button>
+                        </form>
                     @else
-                        <a href="{{ $pageAction['url'] }}" class="btn btn-{{ $pageAction['style'] ?? 'secondary' }}">{{ $pageAction['label'] }}</a>
+                        <a href="{{ $pageAction['url'] }}" class="btn btn-{{ $pageAction['style'] ?? 'secondary' }}"@if(!empty($pageAction['confirm'])) onclick="return confirm({{ json_encode($pageAction['confirm']) }});"@endif>{{ $pageAction['label'] }}</a>
                     @endif
                 @endforeach
             </div>
