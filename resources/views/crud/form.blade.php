@@ -30,4 +30,6 @@
 
     </form>
 
+    @include('charonfrontend::widgets.autogrow-script')
+
 @endsection

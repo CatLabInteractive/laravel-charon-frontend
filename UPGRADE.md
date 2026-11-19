@@ -1,3 +1,19 @@
+# Text areas grow with their text (2.0.8)
+
+- **Textareas grow** as you type, instead of scrolling inside a small box.
+  The `rows` attribute is the minimum height; the corner can still be
+  dragged. Every textarea of `TextareaWidget` (also the one a text with line
+  breaks gets) has `data-charon-autogrow`; pass
+  `[ 'data-charon-autogrow' => false ]` as attributes to keep a fixed box.
+- **Textareas of the application can join in**: give them
+  `data-charon-autogrow`. Every CRUD form loads the script once
+  (`charonfrontend::widgets.autogrow-script`; include it yourself on a page
+  that is not a CRUD form). Fields added later (repeaters, templates) and
+  fields in a closed tab or `<details>` are sized when they appear. After
+  setting a value from script, call `CharonFrontend.autogrow(textarea)`.
+- Rich text editors replace their textarea and are not affected; make those
+  grow in the editor's own configuration.
+
 # Field errors, actions of the application, lists that leave fields out (2.0.7)
 
 Needs `catlabinteractive/laravel-table` ^1.4.
