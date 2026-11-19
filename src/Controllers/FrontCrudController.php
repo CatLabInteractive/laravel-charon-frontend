@@ -2,6 +2,7 @@
 
 namespace CatLab\CharonFrontend\Controllers;
 
+use CatLab\Charon\Exceptions\InvalidFilterException;
 use CatLab\Charon\Collections\ResourceCollection;
 use CatLab\Charon\Enums\Action;
 use CatLab\Charon\Interfaces\Context as ContextContract;
@@ -216,7 +217,12 @@ trait FrontCrudController
             }
         }
 
-        $response = $this->dispatchToApi(Action::INDEX, $request);
+        try {
+            $response = $this->dispatchToApi(Action::INDEX, $request);
+        } catch (InvalidFilterException $e) {
+            // An unknown or refused filter condition in the url (?status[like]=x).
+            abort(400, $e->getMessage());
+        }
 
         if (!($response instanceof ResourceResponse)) {
             throw UnexpectedResponse::createNoResourceCollection($response);

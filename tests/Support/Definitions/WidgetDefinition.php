@@ -35,6 +35,7 @@ class WidgetDefinition extends ResourceDefinition
                 ->writeable()
                 ->sortable()
                 ->filterable()
+                ->searchable()
                 ->visible(true, true)
 
             ->field('status')
