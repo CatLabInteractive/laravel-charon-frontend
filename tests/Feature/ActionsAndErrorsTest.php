@@ -19,13 +19,13 @@ class ActionsAndErrorsTest extends TestCase
 
         $this->assertMatchesRegularExpression('~<th[^>]*>\s*(<a[^>]*>\s*)?Name~', $html);
         $this->assertDoesNotMatchRegularExpression('~<th[^>]*>\s*Status~', $html);
-        $this->assertStringNotContainsString('name="status"', $html);
-        $this->assertStringContainsString('name="name"', $html);
+        $this->assertStringNotContainsString('name="status[', $html);
+        $this->assertStringContainsString('name="name[value]"', $html);
 
         // the plain list keeps both
         $plain = $this->get('/admin/widgets')->getContent();
         $this->assertMatchesRegularExpression('~<th[^>]*>\s*Status~', $plain);
-        $this->assertStringContainsString('name="status"', $plain);
+        $this->assertStringContainsString('name="status[value]"', $plain);
     }
 
     public function testRowActionsOfTheApplicationAreLinksFormsAndSelects()

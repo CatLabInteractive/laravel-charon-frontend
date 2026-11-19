@@ -125,8 +125,32 @@ class RelationshipAndQueryTest extends TestCase
         $response->assertSee('Alpha');
         $response->assertDontSee('Beta');
         $response->assertSee('<form method="get" action="/admin/widgets"', false);
-        $this->assertMatchesRegularExpression('#<input[^>]*name="name"[^>]*value="Alpha"#', $response->getContent());
-        $this->assertMatchesRegularExpression('#<select[^>]*name="status"#', $response->getContent());
+        $this->assertMatchesRegularExpression('#<input[^>]*name="name\[value\]"[^>]*value="Alpha"#', $response->getContent());
+        $this->assertMatchesRegularExpression('#<select[^>]*name="status\[value\]"#', $response->getContent());
+    }
+
+    public function testIndexFiltersWithAConditionFromTheFilterForm()
+    {
+        $this->actingAsAuthorizedAdmin();
+        $this->seedWidget('Alpha', [ 'status' => 'published' ]);
+        $this->seedWidget('Beta', [ 'status' => null ]);
+        $this->seedWidget('Gamma', [ 'status' => '' ]);
+
+        $notEmpty = $this->get('/admin/widgets?status%5Bop%5D=not_empty&status%5Bvalue%5D=');
+        $notEmpty->assertStatus(200);
+        $notEmpty->assertSee('Alpha');
+        $notEmpty->assertDontSee('Beta');
+        $notEmpty->assertDontSee('Gamma');
+        $this->assertMatchesRegularExpression('~<option value="not_empty"[^>]*selected~', $notEmpty->getContent());
+
+        $empty = $this->get('/admin/widgets?status%5Bop%5D=empty');
+        $empty->assertDontSee('Alpha');
+        $empty->assertSee('Beta');
+        $empty->assertSee('Gamma');
+
+        $contains = $this->get('/admin/widgets?name%5Bop%5D=contains&name%5Bvalue%5D=amm');
+        $contains->assertSee('Gamma');
+        $contains->assertDontSee('Alpha');
     }
 
     public function testBlankFilterInputsDoNotFilter()
@@ -137,6 +161,13 @@ class RelationshipAndQueryTest extends TestCase
         $this->seedWidget('Beta');
 
         $response = $this->get('/admin/widgets?name=&status=');
+
+        $response->assertStatus(200);
+        $response->assertSee('Alpha');
+        $response->assertSee('Beta');
+
+        // the same with conditions: "is" with no value filters nothing
+        $response = $this->get('/admin/widgets?name%5Bop%5D=&name%5Bvalue%5D=&status%5Bop%5D=neq&status%5Bvalue%5D=');
 
         $response->assertStatus(200);
         $response->assertSee('Alpha');

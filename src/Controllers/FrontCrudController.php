@@ -202,10 +202,16 @@ trait FrontCrudController
     {
         // The table's filter form submits every field, blank ones included
         // (as '' or, after ConvertEmptyStringsToNull, as null), and charon
-        // would filter on that; drop them.
+        // would filter on that; drop them, also inside a filter with a
+        // condition (name[op]=&name[value]=).
         foreach ($request->query->keys() as $key) {
-            $value = $request->query->get($key);
-            if ($value === '' || $value === null) {
+            $value = $request->query->all()[$key] ?? null;
+            if (is_array($value)) {
+                $value = $this->withoutBlankQueryValues($value);
+                $request->query->set($key, $value);
+            }
+
+            if ($value === '' || $value === null || $value === []) {
                 $request->query->remove($key);
             }
         }
@@ -242,6 +248,26 @@ trait FrontCrudController
                 'chrome' => $this->getPageChrome($request, Action::INDEX),
             ]
         );
+    }
+
+    /**
+     * @param array $values
+     * @return array the values without '' and null, nested arrays included
+     */
+    private function withoutBlankQueryValues(array $values): array
+    {
+        foreach ($values as $key => $value) {
+            if (is_array($value)) {
+                $value = $this->withoutBlankQueryValues($value);
+                $values[$key] = $value;
+            }
+
+            if ($value === '' || $value === null || $value === []) {
+                unset($values[$key]);
+            }
+        }
+
+        return $values;
     }
 
     /**

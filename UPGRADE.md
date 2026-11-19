@@ -1,3 +1,16 @@
+# Filter conditions on the list (2.0.9)
+
+- **Every filter above the list has a condition**: is, is not, contains (free
+  text only), is empty, is not empty. Pick "is not empty" on a field to list
+  the records where it is filled in. Requires charon ^1.13 and
+  charon-laravel ^1.13 (which run the conditions) and laravel-table ^1.5
+  (which draws them).
+- The filter inputs are named `name[op]` and `name[value]` now (were
+  `name`); `?name=value` still filters on equality. Styles or scripts that
+  target `input[name="..."]` in `.table-filters` need the new names.
+- Blank values inside such a filter are dropped from the request, like blank
+  plain values were.
+
 # Editing comfort: growing text areas, side column, save bar, parent on the form (2.0.8)
 
 - **The save bar stays in view.** The form's buttons sit in
