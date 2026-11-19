@@ -17,6 +17,7 @@ use Tests\Support\Controllers\ActionWidgetFrontController;
 use Tests\Support\Controllers\CategoryApiController;
 use Tests\Support\Controllers\CategoryFrontController;
 use Tests\Support\Controllers\CategoryWidgetFrontController;
+use Tests\Support\Controllers\EditorWidgetFrontController;
 use Tests\Support\Controllers\HubCategoryFrontController;
 use Tests\Support\Controllers\FormWidgetFrontController;
 use Tests\Support\Controllers\GroupedWidgetFrontController;
@@ -144,6 +145,7 @@ abstract class TestCase extends OrchestraTestCase
             GroupedWidgetFrontController::routes('/admin/grouped-widgets', GroupedWidgetFrontController::class);
             UploadWidgetFrontController::routes('/admin/upload-widgets', UploadWidgetFrontController::class);
             CategoryWidgetFrontController::routes('/admin/categories/{category}/widgets', CategoryWidgetFrontController::class);
+            EditorWidgetFrontController::routes('/admin/categories/{category}/editor-widgets', EditorWidgetFrontController::class);
             ActionWidgetFrontController::routes('/admin/action-widgets', ActionWidgetFrontController::class);
             HubCategoryFrontController::routes('/admin/hub-categories', HubCategoryFrontController::class);
             Route::get('/admin/hub-categories/{category}/history', [ HubCategoryFrontController::class, 'history' ]);

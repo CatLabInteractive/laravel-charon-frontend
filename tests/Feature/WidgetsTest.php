@@ -71,7 +71,25 @@ class WidgetsTest extends TestCase
 
         $this->get('/admin/form-widgets/create')
             ->assertStatus(200)
-            ->assertSee('<textarea id="field-name" name="fields[name]" class="form-control" rows="2"></textarea>', false);
+            ->assertSee('<textarea id="field-name" name="fields[name]" class="form-control" data-charon-autogrow rows="2"></textarea>', false);
+    }
+
+    /**
+     * Textareas grow with their text; the script that does it is on the page
+     * once, also when the form has no textarea.
+     */
+    public function testTextareasGrowWithTheirText()
+    {
+        $this->actingAsAuthorizedAdmin();
+
+        $html = $this->get('/admin/form-widgets/create')->assertStatus(200)->getContent();
+        $this->assertSame(1, substr_count($html, 'window.CharonFrontend = '));
+        $this->assertSame(1, substr_count($html, "var SELECTOR = 'textarea[data-charon-autogrow]'"));
+
+        // An application can switch it off per widget.
+        $html = (new TextareaWidget(false, [ 'data-charon-autogrow' => false ]))
+            ->render(new FormField($this->fieldOf('name')));
+        $this->assertStringContainsString('<textarea id="field-name" name="fields[name]" class="form-control" rows="5"></textarea>', $html);
     }
 
     public function testLabelsAreReadable()
@@ -426,7 +444,7 @@ class WidgetsTest extends TestCase
         $response = $this->get('/admin/widgets/' . $widget->id . '/edit');
 
         $response->assertStatus(200);
-        $response->assertSee('<textarea id="field-name" name="fields[name]" class="form-control" rows="5">' . "First line\nSecond line" . '</textarea>', false);
+        $response->assertSee('<textarea id="field-name" name="fields[name]" class="form-control" data-charon-autogrow rows="5">' . "First line\nSecond line" . '</textarea>', false);
         $response->assertDontSee('<input type="text" id="field-name"', false);
     }
 }

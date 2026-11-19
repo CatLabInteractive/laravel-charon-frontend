@@ -11,7 +11,8 @@ use Illuminate\Support\Str;
 /**
  * One field of a form: the definition's field, the resource being edited
  * (if any), and the names its inputs use. Every input of a field lives
- * under fields[<display name>].
+ * under fields[<display name>], or under another root (parent[...] for the
+ * parent's fields on a child's form, see FrontCrudController::editParentOnForm()).
  */
 class FormField
 {
@@ -31,13 +32,25 @@ class FormField
     private $options = [];
 
     /**
+     * @var string
+     */
+    private $root;
+
+    /**
      * @param Field $field
      * @param RESTResource|null $resource
+     * @param string $root The input everything of this field lives under.
      */
-    public function __construct(Field $field, ?RESTResource $resource = null)
+    public function __construct(Field $field, ?RESTResource $resource = null, string $root = 'fields')
     {
         $this->field = $field;
         $this->resource = $resource;
+        $this->root = $root;
+    }
+
+    public function getRoot(): string
+    {
+        return $this->root;
     }
 
     public function getField(): Field
@@ -149,7 +162,7 @@ class FormField
      */
     public function getInputName(string $suffix = ''): string
     {
-        return 'fields[' . $this->getName() . ']' . $suffix;
+        return $this->root . '[' . $this->getName() . ']' . $suffix;
     }
 
     /**
@@ -157,12 +170,12 @@ class FormField
      */
     public function getDotName(string $path = ''): string
     {
-        return 'fields.' . $this->getName() . ($path !== '' ? '.' . $path : '');
+        return $this->root . '.' . $this->getName() . ($path !== '' ? '.' . $path : '');
     }
 
     public function getId(string $suffix = ''): string
     {
-        return 'field-' . $this->getName() . ($suffix !== '' ? '-' . $suffix : '');
+        return ($this->root === 'fields' ? 'field-' : $this->root . '-field-') . $this->getName() . ($suffix !== '' ? '-' . $suffix : '');
     }
 
     /**

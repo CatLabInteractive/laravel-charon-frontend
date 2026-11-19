@@ -1,3 +1,47 @@
+# Editing comfort: growing text areas, side column, save bar, parent on the form (2.0.8)
+
+- **The save bar stays in view.** The form's buttons sit in
+  `.charon-form-actions`, sticky at the bottom of the window, with
+  "Unsaved changes" once a field changed; leaving the page with unsaved
+  changes asks first. Save is a `<button>` now (was `<input type="submit">`)
+  and comes after Cancel, on the right. A field
+  that changes outside the form's inputs (a rich text editor in an iframe)
+  dispatches an `input` event on its textarea to count as a change.
+- **More save buttons**: `addSaveButton('Save and view', 'view')`; read
+  which one was pressed in `redirectAfterSave()` with
+  `getPressedSaveButton($request)`.
+- **Field groups take options**: `addFieldGroup($label, $fields, [ 'aside' =>
+  true, 'collapsed' => true, 'description' => '...' ])`. Aside groups go in a
+  side column (`col-lg-4`; below the rest on a phone); collapsed groups are
+  a `<details>`, opened when one of their fields has an error.
+- **The parent on a child's edit form**: with `setParentController()`,
+  `editParentOnForm($label, $groupOptions)` shows the parent's own edit form
+  fields in a group (inputs under `parent[...]`, ids `parent-field-...`) and
+  saves the parent first; a refused parent saves nothing and shows its
+  errors under its fields. The parent needs the `FrontCrudController` trait
+  (`getFormFieldsForChildForm()`, `saveFromChildForm()`). `FormField` takes the input root as a third constructor argument.
+- **Tabs above a form**: override `getFormTabs($request, $action, $resource)`
+  to return `[ 'label', 'url', 'active', 'badge', 'badgeStyle', 'muted' ]`
+  tabs, e.g. one per language.
+- `crud/form-fields` draws `$sections` when given (the form passes the main
+  and the side column separately).
+
+## Text areas grow with their text
+
+- **Textareas grow** as you type, instead of scrolling inside a small box.
+  The `rows` attribute is the minimum height; the corner can still be
+  dragged. Every textarea of `TextareaWidget` (also the one a text with line
+  breaks gets) has `data-charon-autogrow`; pass
+  `[ 'data-charon-autogrow' => false ]` as attributes to keep a fixed box.
+- **Textareas of the application can join in**: give them
+  `data-charon-autogrow`. Every CRUD form loads the script once
+  (`charonfrontend::widgets.autogrow-script`; include it yourself on a page
+  that is not a CRUD form). Fields added later (repeaters, templates) and
+  fields in a closed tab or `<details>` are sized when they appear. After
+  setting a value from script, call `CharonFrontend.autogrow(textarea)`.
+- Rich text editors replace their textarea and are not affected; make those
+  grow in the editor's own configuration.
+
 # Field errors, actions of the application, lists that leave fields out (2.0.7)
 
 Needs `catlabinteractive/laravel-table` ^1.4.
