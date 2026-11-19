@@ -139,9 +139,28 @@ trait FrontCrudController
     private $appPageActions = [];
 
     /**
-     * @var array[] [ [ 'label' => string, 'fields' => string[] ] ]
+     * @var array[] [ [ 'label' => string, 'fields' => string[], 'aside' => bool, 'collapsed' => bool, 'description' => ?string ] ]
      */
     private $fieldGroups = [];
+
+    /**
+     * The parent's fields on this controller's edit form, see editParentOnForm().
+     * @var array|null [ 'label' => string, 'options' => array ]
+     */
+    private $parentFormGroup;
+
+    /**
+     * Extra submit buttons registered with addSaveButton().
+     * @var array[] [ [ 'label' => string, 'value' => string ] ]
+     */
+    private $saveButtons = [];
+
+    /**
+     * The input the form fields live under: "fields", or "parent" while
+     * this controller handles its fields on a child's form.
+     * @var string
+     */
+    private $formRoot = 'fields';
 
     /**
      * The front controller this one is nested under, see setParentController().
@@ -411,10 +430,22 @@ trait FrontCrudController
             abort(403);
         }
 
-        $response = $this->saveWithUploads($request, function () use ($request) {
+        $parentError = null;
+        $response = $this->saveWithUploads($request, function () use ($request, &$parentError) {
+            // The parent's fields on this form are saved first; when the api
+            // refuses those, nothing of this form is saved.
+            $parentError = $this->saveParentFormFields($request);
+            if ($parentError !== null) {
+                return $parentError;
+            }
+
             $apiRequest = $this->transformFormInput($request, Action::EDIT);
             return $this->dispatchToApi(Action::EDIT, $apiRequest);
         });
+
+        if ($parentError !== null) {
+            return $parentError;
+        }
 
         if (!($response instanceof ResourceResponse)) {
             return $this->handleErrorResponse($response, 'store');
@@ -1260,9 +1291,24 @@ trait FrontCrudController
                 break;
         }
 
+        $formSections = $this->groupFormFields($formFields);
+
+        if ($action === Action::EDIT && $this->parentFormGroup) {
+            $parentSection = $this->getParentFormSection($request);
+            if ($parentSection !== null) {
+                $formSections[] = $parentSection;
+                foreach ($parentSection['fields'] as $parentField) {
+                    $multipart = $multipart || $parentField['widget']->isMultipart();
+                }
+            }
+        }
+
         return $this->createFormView($action, $this->getView('form'), [
             'formFields' => $formFields,
-            'formSections' => $this->groupFormFields($formFields),
+            'formSections' => $formSections,
+            'tabs' => $resource || $action === Action::CREATE ? $this->getFormTabs($request, $action, $resource) : [],
+            'saveButtons' => $this->saveButtons,
+            'saveButtonName' => 'charon_save',
             'multipart' => $multipart,
             'action' => $this->action($processmethod),
             'resource' => $resource,
@@ -1281,14 +1327,219 @@ trait FrontCrudController
      * forms, e.g. $this->addFieldGroup('Tickets', [ 'vat_percentage', 'team_size' ]).
      * A group sits where the first of its fields would be; fields in no
      * group keep their definition order. Names are field display names.
+     *
+     * Options:
+     * - 'aside' => true: in the side column (on wide screens; below the
+     *   other fields on a phone). A form with aside groups has two columns.
+     * - 'collapsed' => true: folded to its heading until it is opened
+     *   (opened anyway when one of its fields has an error).
+     * - 'description' => string: a line under the heading.
      * @param string $label
      * @param string[] $fieldNames
+     * @param array $options
      * @return $this
      */
-    protected function addFieldGroup(string $label, array $fieldNames)
+    protected function addFieldGroup(string $label, array $fieldNames, array $options = [])
     {
-        $this->fieldGroups[] = [ 'label' => $label, 'fields' => array_values($fieldNames) ];
+        $this->fieldGroups[] = $this->fieldGroupOptions($options) + [ 'label' => $label, 'fields' => array_values($fieldNames) ];
         return $this;
+    }
+
+    /**
+     * @param array $options
+     * @return array
+     */
+    private function fieldGroupOptions(array $options): array
+    {
+        return [
+            'aside' => !empty($options['aside']),
+            'collapsed' => !empty($options['collapsed']),
+            'description' => isset($options['description']) ? (string) $options['description'] : null,
+        ];
+    }
+
+    /**
+     * Edit the parent (see setParentController()) on this controller's edit
+     * form too: the fields of the parent's own edit form, under a heading,
+     * saved together with this form (the parent first). E.g. a page's
+     * settings next to the content of one of its translations:
+     * $this->editParentOnForm('Pagina', [ 'aside' => true, 'description' => 'Geldt voor alle talen.' ]).
+     * Takes the options of addFieldGroup(). Only shown when the parent may
+     * be edited.
+     * @param string $label
+     * @param array $options
+     * @return $this
+     */
+    protected function editParentOnForm(string $label, array $options = [])
+    {
+        $this->parentFormGroup = [ 'label' => $label, 'options' => $options ];
+        return $this;
+    }
+
+    /**
+     * Another submit button next to Save, e.g. "Save and view". The
+     * form submits $value as charon_save; read it in
+     * redirectAfterSave() with getPressedSaveButton().
+     * @param string $label
+     * @param string $value
+     * @return $this
+     */
+    protected function addSaveButton(string $label, string $value)
+    {
+        $this->saveButtons[] = [ 'label' => $label, 'value' => $value ];
+        return $this;
+    }
+
+    /**
+     * The value of the save button that submitted the form (addSaveButton()),
+     * null for the standard one.
+     * @param Request $request
+     * @return string|null
+     */
+    protected function getPressedSaveButton(Request $request): ?string
+    {
+        $value = $request->input('charon_save');
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * Tabs above a create or edit form, e.g. one per language of a
+     * translated resource. Empty by default.
+     * @param Request $request
+     * @param string $action Action::CREATE or Action::EDIT
+     * @param RESTResource|null $resource
+     * @return array [ [ 'label' => string, 'url' => string, 'active' => bool, 'badge' => ?string, 'muted' => bool ] ]
+     */
+    protected function getFormTabs(Request $request, string $action, ?RESTResource $resource = null): array
+    {
+        return [];
+    }
+
+    /**
+     * The parent's form section on this controller's edit form, null when
+     * there is none or it may not be edited.
+     * @param Request $request
+     * @return array|null
+     */
+    private function getParentFormSection(Request $request): ?array
+    {
+        $parent = $this->getParentController();
+        if (!$parent || !$this->parentFormGroup) {
+            return null;
+        }
+
+        $fields = $parent->getFormFieldsForChildForm($request, $request->route($this->parentController['parameter']));
+        if ($fields === null || count($fields) === 0) {
+            return null;
+        }
+
+        return $this->fieldGroupOptions($this->parentFormGroup['options']) + [
+            'label' => $this->parentFormGroup['label'],
+            'fields' => $fields,
+        ];
+    }
+
+    /**
+     * Save the parent's fields of this form, if it has them.
+     * @param Request $request
+     * @return \Symfony\Component\HttpFoundation\Response|null The response to give when the parent was not saved.
+     */
+    private function saveParentFormFields(Request $request)
+    {
+        $parent = $this->getParentController();
+        if (!$parent || !$this->parentFormGroup || !is_array($request->input('parent'))) {
+            return null;
+        }
+
+        return $parent->saveFromChildForm($request, $request->route($this->parentController['parameter']));
+    }
+
+    /**
+     * This controller's edit form fields for one of its resources, to be
+     * shown on a child's edit form (editParentOnForm()), with inputs under
+     * parent[...]. Null when the resource may not be edited.
+     * @param Request $request The child's request.
+     * @param mixed $id
+     * @return array|null [ [ 'field' => FormField, 'widget' => Widget ] ]
+     */
+    public function getFormFieldsForChildForm(Request $request, $id): ?array
+    {
+        $viewRequest = $this->makeSubRequest($request, $id);
+
+        $response = $this->dispatchToApi(Action::VIEW, $viewRequest);
+        if (!($response instanceof ResourceResponse)) {
+            return null;
+        }
+        $resource = $response->getResource();
+        if (!$this->isMethodAllowed($viewRequest, Action::EDIT, $resource)) {
+            return null;
+        }
+
+        return $this->withFormRoot('parent', function () use ($viewRequest, $resource) {
+            $out = [];
+            foreach ($this->getFormFields(Action::EDIT, $resource) as $formField) {
+                $widget = $this->widgets()->resolve($formField->getField());
+                $options = $this->resolveFieldOptions($viewRequest, $formField, $widget);
+                if ($formField->getField() instanceof RelationshipField) {
+                    $options = $this->withLinkedOptions($viewRequest, $resource, $formField->getField(), $options);
+                }
+                $formField->setOptions($options);
+                $out[] = [ 'field' => $formField, 'widget' => $widget ];
+            }
+            return $out;
+        });
+    }
+
+    /**
+     * Save one of this controller's resources from the parent[...]
+     * input of a child's form (editParentOnForm()).
+     * @param Request $request The child's request.
+     * @param mixed $id
+     * @return \Symfony\Component\HttpFoundation\Response|null Null when saved, else the response to give (back to the form, with the errors under the parent's fields).
+     */
+    public function saveFromChildForm(Request $request, $id)
+    {
+        $viewRequest = $this->makeSubRequest($request, $id);
+        $current = $this->dispatchToApi(Action::VIEW, $viewRequest);
+        if (!($current instanceof ResourceResponse)) {
+            return $current;
+        }
+        if (!$this->isMethodAllowed($viewRequest, Action::EDIT, $current->getResource())) {
+            abort(403);
+        }
+
+        return $this->withFormRoot('parent', function () use ($request, $id) {
+            $input = $this->transformFormInput($request, Action::EDIT);
+
+            $editRequest = $this->makeSubRequest($request, $id);
+            $editRequest->setMethod('PUT');
+            $editRequest->replace($input->all());
+
+            $response = $this->dispatchToApi(Action::EDIT, $editRequest);
+            if ($response instanceof ResourceResponse) {
+                return null;
+            }
+
+            return $response instanceof JsonResponse
+                ? $this->handleErrorResponse($response, 'store')
+                : $response;
+        });
+    }
+
+    /**
+     * @param string $root
+     * @param callable $callback
+     * @return mixed
+     */
+    private function withFormRoot(string $root, callable $callback)
+    {
+        $previous = $this->formRoot;
+        $this->formRoot = $root;
+        try {
+            return $callback();
+        } finally {
+            $this->formRoot = $previous;
+        }
     }
 
     /**
@@ -1323,7 +1574,7 @@ trait FrontCrudController
                 if ($last >= 0 && $sections[$last]['label'] === null) {
                     $sections[$last]['fields'][] = $formField;
                 } else {
-                    $sections[] = [ 'label' => null, 'fields' => [ $formField ] ];
+                    $sections[] = $this->fieldGroupOptions([]) + [ 'label' => null, 'fields' => [ $formField ] ];
                 }
                 continue;
             }
@@ -1340,7 +1591,8 @@ trait FrontCrudController
                     $fields[] = $byName[$groupField];
                 }
             }
-            $sections[] = [ 'label' => $this->fieldGroups[$index]['label'], 'fields' => $fields ];
+            $sections[] = $this->fieldGroups[$index] + [];
+            $sections[count($sections) - 1]['fields'] = $fields;
         }
 
         return $sections;
@@ -1393,7 +1645,7 @@ trait FrontCrudController
 
         $out = [];
         foreach ($fields as $field) {
-            $out[] = new FormField($field, $resource);
+            $out[] = new FormField($field, $resource, $this->formRoot);
         }
         return $out;
     }

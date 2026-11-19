@@ -30,4 +30,6 @@ return [
     'invalid_date' => ':field: dit is geen geldige datum.',
     'file_not_accepted' => ':field: dit type bestand is niet toegelaten.',
     'time_of' => ':field (uur)',
+    'unsaved_changes' => 'Niet-opgeslagen wijzigingen',
+    'leave_unsaved' => 'Je wijzigingen zijn nog niet opgeslagen. Toch weggaan?',
 ];

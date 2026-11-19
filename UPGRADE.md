@@ -1,4 +1,32 @@
-# Text areas grow with their text (2.0.8)
+# Editing comfort: growing text areas, side column, save bar, parent on the form (2.0.8)
+
+- **The save bar stays in view.** The form's buttons sit in
+  `.charon-form-actions`, sticky at the bottom of the window, with
+  "Unsaved changes" once a field changed; leaving the page with unsaved
+  changes asks first. Save now comes after Cancel, on the right. A field
+  that changes outside the form's inputs (a rich text editor in an iframe)
+  dispatches an `input` event on its textarea to count as a change.
+- **More save buttons**: `addSaveButton('Save and view', 'view')`; read
+  which one was pressed in `redirectAfterSave()` with
+  `getPressedSaveButton($request)`.
+- **Field groups take options**: `addFieldGroup($label, $fields, [ 'aside' =>
+  true, 'collapsed' => true, 'description' => '...' ])`. Aside groups go in a
+  side column (`col-lg-4`; below the rest on a phone); collapsed groups are
+  a `<details>`, opened when one of their fields has an error.
+- **The parent on a child's edit form**: with `setParentController()`,
+  `editParentOnForm($label, $groupOptions)` shows the parent's own edit form
+  fields in a group (inputs under `parent[...]`, ids `parent-field-...`) and
+  saves the parent first; a refused parent saves nothing and shows its
+  errors under its fields. `FrontCrudControllerContract` gained
+  `getFormFieldsForChildForm()` and `saveFromChildForm()` (the trait has
+  them). `FormField` takes the input root as a third constructor argument.
+- **Tabs above a form**: override `getFormTabs($request, $action, $resource)`
+  to return `[ 'label', 'url', 'active', 'badge', 'badgeStyle', 'muted' ]`
+  tabs, e.g. one per language.
+- `crud/form-fields` draws `$sections` when given (the form passes the main
+  and the side column separately).
+
+## Text areas grow with their text
 
 - **Textareas grow** as you type, instead of scrolling inside a small box.
   The `rows` attribute is the minimum height; the corner can still be

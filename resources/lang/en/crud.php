@@ -30,4 +30,6 @@ return [
     'invalid_date' => ':field: this is not a valid date.',
     'file_not_accepted' => ':field: this type of file is not accepted.',
     'time_of' => ':field (time)',
+    'unsaved_changes' => 'Unsaved changes',
+    'leave_unsaved' => 'Your changes are not saved yet. Leave anyway?',
 ];
