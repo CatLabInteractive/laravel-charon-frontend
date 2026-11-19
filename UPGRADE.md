@@ -3,7 +3,8 @@
 - **The save bar stays in view.** The form's buttons sit in
   `.charon-form-actions`, sticky at the bottom of the window, with
   "Unsaved changes" once a field changed; leaving the page with unsaved
-  changes asks first. Save now comes after Cancel, on the right. A field
+  changes asks first. Save is a `<button>` now (was `<input type="submit">`)
+  and comes after Cancel, on the right. A field
   that changes outside the form's inputs (a rich text editor in an iframe)
   dispatches an `input` event on its textarea to count as a change.
 - **More save buttons**: `addSaveButton('Save and view', 'view')`; read
@@ -17,9 +18,8 @@
   `editParentOnForm($label, $groupOptions)` shows the parent's own edit form
   fields in a group (inputs under `parent[...]`, ids `parent-field-...`) and
   saves the parent first; a refused parent saves nothing and shows its
-  errors under its fields. `FrontCrudControllerContract` gained
-  `getFormFieldsForChildForm()` and `saveFromChildForm()` (the trait has
-  them). `FormField` takes the input root as a third constructor argument.
+  errors under its fields. The parent needs the `FrontCrudController` trait
+  (`getFormFieldsForChildForm()`, `saveFromChildForm()`). `FormField` takes the input root as a third constructor argument.
 - **Tabs above a form**: override `getFormTabs($request, $action, $resource)`
   to return `[ 'label', 'url', 'active', 'badge', 'badgeStyle', 'muted' ]`
   tabs, e.g. one per language.

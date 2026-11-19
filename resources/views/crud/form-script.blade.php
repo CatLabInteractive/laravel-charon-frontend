@@ -9,8 +9,14 @@
     .charon-form-actions .charon-form-unsaved::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: #c98a1b; }
     .charon-form-actions .charon-form-unsaved[hidden] { display: none; }
     @media (max-width: 575.98px) {
-        .charon-form-actions .btn { flex: 1 1 auto; min-height: 44px; }
+        /* One row of buttons on a phone; the breadcrumbs lead back instead of Cancel. */
+        .charon-form-actions { gap: .375rem .5rem; padding: .5rem 0 .625rem; }
+        .charon-form-actions .btn { flex: 1 1 0; min-height: 44px; padding-left: .5rem; padding-right: .5rem; font-size: .9375rem; }
+        .charon-form-actions .btn-link { display: none; }
         .charon-form-actions .charon-form-unsaved { flex: 1 0 100%; }
+        /* Tabs scroll sideways instead of wrapping. */
+        .charon-form-tabs { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; }
+        .charon-form-tabs .nav-link { white-space: nowrap; }
     }
     .charon-field-group-collapsed > summary { cursor: pointer; }
     .charon-form-aside .charon-field-group { background: #fff; }

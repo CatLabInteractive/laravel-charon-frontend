@@ -55,21 +55,4 @@ interface FrontCrudControllerContract
      * @return array [ [ 'label' => string, 'url' => string|null ] ]
      */
     public function getBreadcrumbTrail(Request $request, $id = null): array;
-
-    /**
-     * The edit form fields of one of this controller's resources for a
-     * child's edit form (editParentOnForm()), inputs under parent[...].
-     * @param Request $request
-     * @param mixed $id
-     * @return array|null
-     */
-    public function getFormFieldsForChildForm(Request $request, $id): ?array;
-
-    /**
-     * Save one of this controller's resources from a child's form.
-     * @param Request $request
-     * @param mixed $id
-     * @return \Symfony\Component\HttpFoundation\Response|null Null when saved.
-     */
-    public function saveFromChildForm(Request $request, $id);
 }

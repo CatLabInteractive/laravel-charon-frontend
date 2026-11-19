@@ -1424,7 +1424,7 @@ trait FrontCrudController
     private function getParentFormSection(Request $request): ?array
     {
         $parent = $this->getParentController();
-        if (!$parent || !$this->parentFormGroup) {
+        if (!$parent || !$this->parentFormGroup || !method_exists($parent, 'getFormFieldsForChildForm')) {
             return null;
         }
 
@@ -1447,7 +1447,7 @@ trait FrontCrudController
     private function saveParentFormFields(Request $request)
     {
         $parent = $this->getParentController();
-        if (!$parent || !$this->parentFormGroup || !is_array($request->input('parent'))) {
+        if (!$parent || !$this->parentFormGroup || !method_exists($parent, 'saveFromChildForm') || !is_array($request->input('parent'))) {
             return null;
         }
 
